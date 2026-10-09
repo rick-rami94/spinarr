@@ -161,7 +161,7 @@ function renderMain() {
       <header class="disc-head ${bd ? 'bd' : ''}">
         <div class="disc-wrap" aria-hidden="true"><div class="disc ${bd ? 'bd' : ''}"></div><div class="disc-read"></div></div>
         <div class="disc-title">
-          <input id="discName" class="${state.discName.length > 22 ? 'long' : ''}" value="${esc(state.discName)}" spellcheck="false" title="Used for file names and the MKV title" aria-label="Disc name" />
+          <input id="discName" class="${state.discName.length < 23 ? '' : 'long'}" value="${esc(state.discName)}" spellcheck="false" title="Used for file names and the MKV title" aria-label="Disc name" />
           <div class="disc-meta">
             <span class="badge fmt ${bd ? 'bd' : ''}">${bd ? 'Blu-ray' : 'DVD'}</span>
             ${first ? `<span class="spec">${[first.video.standard, first.video.codec, first.video.aspect].filter((x) => x && x !== '?').map(esc).join(' · ')}</span>` : ''}
