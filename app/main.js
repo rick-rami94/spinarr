@@ -191,16 +191,7 @@ function scannedTitle(source, title) {
 }
 
 // Why an encrypted Blu-ray can't be ripped, or null if it can.
-function blurayBlocker(enc) {
-  if (!enc) return null;
-  if (enc.aacs && !enc.aacsHandled) {
-    return enc.libaacs
-      ? 'This Blu-ray is encrypted (AACS) and no key for it was found in your KEYDB.cfg.'
-      : 'This Blu-ray is encrypted (AACS). Install libaacs (brew install libaacs) and a KEYDB.cfg key file to rip it.';
-  }
-  if (enc.bdplus && !enc.bdplusHandled) return 'This Blu-ray uses BD+ protection, which Spinarr can\'t remove.';
-  return null;
-}
+const blurayBlocker = (enc) => lib.blurayBlocker(enc, path.join(platform.keyDirs.aacsConf, 'KEYDB.cfg'));
 
 async function probeStreams(source, title) {
   const disc = scans.get(source);

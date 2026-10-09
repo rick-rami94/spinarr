@@ -293,3 +293,17 @@ test('outputVideoSeconds reads the MKV video track duration tag', () => {
   assert.equal(lib.outputVideoSeconds({ streams: [{ codec_type: 'video', tags: { DURATION: 'evil' } }] }), null);
   assert.equal(lib.outputVideoSeconds(null), null);
 });
+
+test('blurayBlocker explains what is actually missing', () => {
+  const k = '/home/me/.config/aacs/KEYDB.cfg';
+  const aacs = (aacsError, extra = {}) => ({ aacs: true, libaacs: true, aacsHandled: false, aacsError, ...extra });
+  assert.equal(lib.blurayBlocker(null, k), null);
+  assert.equal(lib.blurayBlocker({ aacs: true, aacsHandled: true }, k), null);
+  assert.match(lib.blurayBlocker(aacs(0, { libaacs: false }), k), /Install libaacs/);
+  assert.match(lib.blurayBlocker(aacs(-2), k), /found no KEYDB\.cfg.*\/home\/me\/\.config\/aacs\/KEYDB\.cfg/);
+  assert.match(lib.blurayBlocker(aacs(-3), k), /has no key that opens it/);
+  assert.match(lib.blurayBlocker(aacs(-8), k), /has no key that opens it/);
+  assert.match(lib.blurayBlocker(aacs(-5), k), /revokes/);
+  assert.match(lib.blurayBlocker(aacs(-6), k), /refused the AACS handshake/);
+  assert.match(lib.blurayBlocker({ bdplus: true, bdplusHandled: false }, k), /BD\+/);
+});

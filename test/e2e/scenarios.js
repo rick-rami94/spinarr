@@ -446,7 +446,8 @@ Object.assign(module.exports, {
     title: 'Encrypted Blu-ray without libaacs: clear message, Rip disabled, and the backend refuses it too',
     async run(h) {
       await h.load(h.fx('bd_aacs'));
-      h.assert.match(await h.js(`document.querySelector('.error-box.banner').textContent`), /encrypted \(AACS\).*libaacs/);
+      // The reason depends on whether libaacs/KEYDB.cfg are installed here; it must always be specific.
+      h.assert.match(await h.js(`document.querySelector('.error-box.banner').textContent`), /encrypted \(AACS\).*(libaacs|KEYDB\.cfg|AACS files|handshake)/);
       h.assert.equal(await h.js(`document.querySelector('[data-action="rip"]').disabled`), true);
       await h.shot('encrypted');
       const r = await call(h, `spinarr.rip([{ source: state.source, title: 1, duration: 90, fileName: 'x', displayName: 'x' }])`);
