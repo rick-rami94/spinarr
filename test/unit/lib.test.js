@@ -299,7 +299,7 @@ test('blurayBlocker explains what is actually missing', () => {
   const aacs = (aacsError, extra = {}) => ({ aacs: true, libaacs: true, aacsHandled: false, aacsError, ...extra });
   assert.equal(lib.blurayBlocker(null, k), null);
   assert.equal(lib.blurayBlocker({ aacs: true, aacsHandled: true }, k), null);
-  assert.match(lib.blurayBlocker(aacs(0, { libaacs: false }), k), /Install libaacs/);
+  assert.match(lib.blurayBlocker(aacs(0, { libaacs: false }), k, 'sudo apt install libaacs0'), /Install libaacs \(sudo apt install libaacs0\)/);
   assert.match(lib.blurayBlocker(aacs(-2), k), /found no KEYDB\.cfg.*\/home\/me\/\.config\/aacs\/KEYDB\.cfg/);
   assert.match(lib.blurayBlocker(aacs(-3), k), /has no key that opens it/);
   assert.match(lib.blurayBlocker(aacs(-8), k), /has no key that opens it/);

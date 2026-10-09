@@ -208,13 +208,13 @@ function sourceKind(dir, { stat = fs.statSync } = {}) {
 
 // Why an encrypted Blu-ray can't be ripped (from bdinfo's encryption report), or null if it
 // can. aacsError is libbluray's BD_AACS_* code, so the message says what's actually wrong.
-function blurayBlocker(enc, keydbPath) {
+function blurayBlocker(enc, keydbPath, installCommand = 'brew install libaacs') {
   if (!enc) return null;
   if (enc.aacs && !enc.aacsHandled) {
-    if (!enc.libaacs) return 'This Blu-ray is encrypted (AACS). Install libaacs (brew install libaacs) and a KEYDB.cfg key file to rip it.';
+    if (!enc.libaacs) return `This Blu-ray is encrypted (AACS). Install libaacs (${installCommand}), then add your own KEYDB.cfg key file in Settings → System.`;
     switch (enc.aacsError) {
       case -1: return 'This Blu-ray is encrypted (AACS), and its AACS files couldn\'t be read. The disc may be damaged or dirty.';
-      case -2: return `This Blu-ray is encrypted (AACS). libaacs is installed but found no KEYDB.cfg key file. It looks for one at ${keydbPath}.`;
+      case -2: return `This Blu-ray is encrypted (AACS). libaacs is installed but found no KEYDB.cfg key file. It looks for one at ${keydbPath}. Choose yours in Settings → System.`;
       case -4: return 'This Blu-ray is encrypted (AACS) and your KEYDB.cfg has no host certificate, which libaacs needs for this disc.';
       case -5: return 'This Blu-ray is encrypted (AACS) and it revokes the host certificates in your KEYDB.cfg.';
       case -6: return 'This Blu-ray is encrypted (AACS) and the drive refused the AACS handshake.';

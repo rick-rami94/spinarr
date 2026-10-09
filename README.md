@@ -29,6 +29,8 @@ Releases aren't code-signed yet, so the first launch takes one extra step:
 
 ### Encrypted DVDs (libdvdcss)
 
+> **Full guide:** [Encrypted DVDs and Blu-rays](docs/ENCRYPTED_DISCS.md) covers DVDs, Blu-ray key files, and what every message means.
+
 Most store-bought DVDs are encrypted with CSS. Spinarr doesn't ship the library that reads them, so install it once:
 
 | System | Command |
@@ -49,7 +51,7 @@ Most store-bought DVDs are encrypted with CSS. Spinarr doesn't ship the library 
 - **Rip queue.** Shows progress, speed and time left, with cancel and *Show in Finder*. It checks free space first, never overwrites files, and never leaves partial files behind.
 - **Honest failures.** A scratched or unreadable disc fails with a clear message instead of a silently truncated file.
 - **Light and dark mode.**
-- **Blu-ray (early).** Playlists, chapters and track languages; lossless rips (Blu-ray LPCM → FLAC, everything else copied). Unencrypted discs work today. For AACS discs, install `libaacs` and choose your own `KEYDB.cfg` in **Settings → System**. Spinarr copies it to where libaacs looks. It never ships, downloads or links to keys. BD+ and 4K UHD aren't supported. Tested on generated discs; real-drive testing is pending.
+- **Blu-ray (early).** Playlists, chapters and track languages; lossless rips (Blu-ray LPCM → FLAC, everything else copied). Unencrypted discs work today. For AACS discs, install `libaacs` and choose your own `KEYDB.cfg` in **Settings → System** ([guide](docs/ENCRYPTED_DISCS.md#blu-rays-libaacs-and-your-key-file)). Spinarr copies it to where libaacs looks. It never ships, downloads or links to keys. BD+ and 4K UHD aren't supported. Tested on generated discs; real-drive testing is pending.
 
 ## Screenshots
 

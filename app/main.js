@@ -194,7 +194,7 @@ function scannedTitle(source, title) {
 }
 
 // Why an encrypted Blu-ray can't be ripped, or null if it can.
-const blurayBlocker = (enc) => lib.blurayBlocker(enc, path.join(platform.keyDirs.aacsConf, 'KEYDB.cfg'));
+const blurayBlocker = (enc) => lib.blurayBlocker(enc, path.join(platform.keyDirs.aacsConf, 'KEYDB.cfg'), platform.aacs().command);
 
 async function probeStreams(source, title) {
   const disc = scans.get(source);
