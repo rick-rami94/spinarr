@@ -279,10 +279,13 @@ function validateJob(j, opts) {
   };
 }
 
+// Appearance skins (styles.css [data-skin]). Studio is the default and follows the OS light/dark mode.
+const SKINS = ['studio', 'paper', 'pinstripe', 'millennium', 'neon', 'blossom'];
+
 const SETTINGS_SCHEMA = {
   minMinutes: (v) => (Number.isFinite(v) ? Math.min(60, Math.max(0, Math.round(v))) : undefined),
   accurateChapters: (v) => (typeof v === 'boolean' ? v : undefined),
-  skin: (v) => (['studio', 'pinstripe'].includes(v) ? v : undefined),
+  skin: (v) => (SKINS.includes(v) ? v : undefined),
 };
 
 // outputDir is deliberately absent: it can only change through the native folder picker.
@@ -302,5 +305,5 @@ module.exports = {
   prettyName, safeFile, uniquePath, blurayBlocker, analyzeTitles, ripArgs, progressParser, ripVerdict,
   sourceKind, chaptersMetadata, blurayRipArgs, outputVideoSeconds,
   SANDBOX_PROFILE, sandboxed, volumeKind,
-  validateSource, validateTitle, validateJob, sanitizeSettingsPatch,
+  validateSource, validateTitle, validateJob, sanitizeSettingsPatch, SKINS,
 };

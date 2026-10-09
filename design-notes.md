@@ -49,3 +49,13 @@ A running journal for Spinarr's interface, so each design pass builds on the las
   - Gel capsules, with the default button breathing.
   - Barber-pole progress, a blue disc read band and a metal dock.
   - It stays light in dark mode, because that's true to the era.
+
+## 2026-10-09 · A suite of looks
+- **Ask:** "a whole suite of appearances… clean and minimal to Y2K to cyberpunk to clean and girly."
+- **Picker:** the Studio/Pinstripe segmented control became a 3×2 grid of swatches. Each swatch is a tiny window (sidebar, disc, accent bar) in that look's colours.
+- **Paper:** ink on paper. Black is the accent, the disc is desaturated, there is no glow, and type is one family at normal width. Follows light/dark mode.
+- **Millennium:** chrome and aqua. Holographic foil on selection and progress, bubble buttons with a gloss, Archivo extended. Always light.
+- **Neon:** neon yellow on black with cyan and magenta. Mono UI type, uppercase labels, cut corners, a scanline screen and a chromatic-aberration title. Always dark.
+- **Blossom:** blush and rose with a pearl disc, serif italic titles, round checks and soft corners. Always light.
+- **Rules:** each skin is a token block plus overrides under `[data-skin]`, so the markup and the e2e hooks stay shared. Windows/Linux caption buttons take each skin's colours (`SKIN_CHROME` in main.js). Text contrast was checked to be at least 4.5:1 for each skin.
+- **Next time:** Neon's cut-corner dock clips its own focus ring, which is why the button uses an inset outline. Keep that in mind for any new clipped control.

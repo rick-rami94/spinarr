@@ -55,9 +55,20 @@ let settings = loadSettings();
 
 // ---------- window ----------
 let win;
-const titleBarOverlay = () => (nativeTheme.shouldUseDarkColors
-  ? { color: '#0c0c0e', symbolColor: '#f3f3f5', height: 52 }
-  : { color: '#f6f6f4', symbolColor: '#16161a', height: 52 });
+// Windows/Linux caption buttons sit over the stage, so they take the skin's colours.
+// [dark, light] per skin; the fixed-era skins use the same pair in both modes.
+const SKIN_CHROME = {
+  studio: [['#0c0c0e', '#f3f3f5'], ['#f6f6f4', '#16161a']],
+  paper: [['#0a0a0a', '#fafafa'], ['#ffffff', '#0a0a0a']],
+  pinstripe: [['#dadada', '#222222'], ['#dadada', '#222222']],
+  millennium: [['#eceefb', '#12122a'], ['#eceefb', '#12122a']],
+  neon: [['#07070b', '#f5e400'], ['#07070b', '#f5e400']],
+  blossom: [['#fff7f9', '#3b1a2c'], ['#fff7f9', '#3b1a2c']],
+};
+const titleBarOverlay = () => {
+  const [color, symbolColor] = (SKIN_CHROME[settings.skin] || SKIN_CHROME.studio)[nativeTheme.shouldUseDarkColors ? 0 : 1];
+  return { color, symbolColor, height: 52 };
+};
 nativeTheme.on('updated', () => { if (!platform.isMac && win && !win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay()); });
 
 function createWindow() {
@@ -68,7 +79,7 @@ function createWindow() {
     ...(platform.isMac
       ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 } }
       : { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(), icon: path.join(__dirname, 'icon.png') }),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0c0e' : '#f6f6f4',
+    backgroundColor: titleBarOverlay().color,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -407,6 +418,7 @@ handle('settings:get', () => settings);
 handle('settings:set', (patch) => {
   settings = { ...settings, ...lib.sanitizeSettingsPatch(patch) };
   saveSettings(settings);
+  if (!platform.isMac && win && !win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay());
   return settings;
 });
 handle('drives', () => listDrives());

@@ -609,6 +609,35 @@ Object.assign(module.exports, {
     },
   },
 
+  ux_skins: {
+    stories: ['US-30'],
+    title: 'Appearance: every look applies at once mid-rip, is saved, and keeps the disc readout',
+    env: { SPINARR_READRATE: '4' },
+    async run(h) {
+      const looks = { studio: null, paper: null, pinstripe: '#3d84e0', millennium: '#3b6cff', neon: '#f5e400', blossom: '#ff7fae' };
+      await h.load(h.fx('feature_disc.iso'));
+      await h.click('[data-toggle="showShort"]');
+      await h.click('[data-select="4"]');
+      await h.click('[data-action="rip"]');
+      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.2', { timeout: 90000 });
+      for (const [skin, accent] of Object.entries(looks)) {
+        const id = `#skin${skin[0].toUpperCase()}${skin.slice(1)}`;
+        await h.click('#settingsBtn');
+        await h.click(id);
+        h.assert.equal(await h.js('document.documentElement.dataset.skin'), skin, `${skin} previews at once`);
+        if (skin === 'neon' || skin === 'blossom') { await h.sleep(600); await h.shot(`picker-${skin}`); }
+        await h.click('#settingsDlg button[value="ok"]');
+        await h.waitFor(`state.settings.skin === "${skin}"`, { what: `${skin} saved` });
+        if (accent) h.assert.equal((await h.js(`getComputedStyle(document.documentElement).getPropertyValue('--accent')`)).trim(), accent);
+        h.assert.equal(await h.js(`document.querySelector('.disc-head').classList.contains('ripping')`), true);
+        await h.js(`document.getElementById('toasts').innerHTML = ''; 1`);
+        await h.sleep(400);
+        await h.shot(`ripping-${skin}`);
+      }
+      await h.js('Promise.all(state.queue.map(j => spinarr.cancel(j.id))).then(() => 1)');
+    },
+  },
+
   ux_light_theme: {
     stories: ['US-24'],
     title: 'Light appearance renders correctly (visual check)',

@@ -153,11 +153,24 @@ test('validateJob sanitizes names and rejects malformed input', () => {
   fs.rmSync(dir, { recursive: true });
 });
 
+test('every skin has styles and a picker option, and nothing else does', () => {
+  const root = path.join(__dirname, '..', '..', 'app', 'renderer');
+  const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const picker = [...html.matchAll(/name="skin" value="([a-z]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(picker, lib.SKINS);
+  for (const skin of lib.SKINS.filter((k) => k !== 'studio')) assert.match(css, new RegExp(`:root\\[data-skin="${skin}"\\] \\{`));
+  const styled = new Set([...css.matchAll(/data-skin="([a-z]+)"/g)].map((m) => m[1]));
+  for (const skin of styled) assert.ok(lib.SKINS.includes(skin), `${skin} is styled but not selectable`);
+});
+
 test('sanitizeSettingsPatch only lets known, typed keys through', () => {
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: 5, accurateChapters: false }), { minMinutes: 5, accurateChapters: false });
   assert.deepEqual(lib.sanitizeSettingsPatch({ outputDir: '/etc', __proto__: { x: 1 }, evil: 1 }), {});
   assert.deepEqual(lib.sanitizeSettingsPatch({ skin: 'pinstripe' }), { skin: 'pinstripe' });
   assert.deepEqual(lib.sanitizeSettingsPatch({ skin: '../../evil' }), {});
+  for (const skin of lib.SKINS) assert.deepEqual(lib.sanitizeSettingsPatch({ skin }), { skin });
+  assert.deepEqual(lib.sanitizeSettingsPatch({ skin: 'Neon' }), {});
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: 9999 }), { minMinutes: 60 });
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: -3 }), { minMinutes: 0 });
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: '5', accurateChapters: 1 }), {});
