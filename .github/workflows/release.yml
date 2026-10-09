@@ -1,11 +1,14 @@
 name: Release
 
 # Builds the installers on each OS and attaches them to a draft GitHub Release.
-# Push a tag like v0.2.0 (or run manually to just get the artifacts).
+# Push a tag like v0.2.0 (or run manually, or open a PR that touches packaging, to just get the artifacts).
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+  # Build (but don't publish) the installers when a PR touches packaging or the engine.
+  pull_request:
+    paths: ['.github/workflows/release.yml', 'package.json', 'package-lock.json', 'build/**', 'engine/**', 'app/main.js', 'app/platform.js']
 
 permissions:
   contents: read
