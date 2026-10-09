@@ -132,7 +132,7 @@ npm test                        # unit → security corpus → engine → end-to
 npm run test:linux              # the same suite on Linux, in Docker (engine sandboxed by bubblewrap)
 ```
 
-CI runs the full suite on macOS and Linux. On Windows it builds the engine, runs the unit tests, smoke-tests the engine and packages the app.
+CI runs the full suite on macOS and Linux. On Windows it builds the engine, runs the unit tests and drives the real app end to end, using test discs authored on Linux. Every PR that touches packaging also builds all five installers.
 
 Every feature maps to a user story with acceptance criteria: [docs/USER_STORIES.md](docs/USER_STORIES.md). Real-drive results: [docs/HARDWARE_TESTING.md](docs/HARDWARE_TESTING.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
