@@ -25,3 +25,19 @@ A running journal for Spinarr's interface, so each design pass builds on the las
 - **Next time:**
   - Move the remaining raw px spacing onto `--space-*`.
   - Consider an optional Y2K skin behind `data-skin` (see the UI directions canvas).
+
+## 2026-10-09 · Standout pass
+- **Feedback:** "looks nice but not a standout." The identity pass was tidy, but nothing on screen was unique to a disc ripper.
+- **Kept, the signature move:** the disc is the progress display. Discs are read from the hub outward, so while ripping:
+  - a gold "read" band grows from the hub to the rim
+  - a bright laser line marks the leading edge
+  - the unread area is dimmed
+  - the 196 px disc spins in the header
+  - a 64 px condensed percentage replaces the title stats
+- **Also kept:**
+  - The title at 52 px condensed (38 px when longer than 22 characters).
+  - A soft glow behind the header: warm for DVD, violet for Blu-ray.
+  - At 1100 px and narrower, the disc and type scale down.
+- **Next time:**
+  - The title cards could echo the disc, for example a small read ring instead of the bar for the active title.
+  - The empty state could show a disc tray sliding in.

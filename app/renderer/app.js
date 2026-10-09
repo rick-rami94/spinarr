@@ -158,15 +158,19 @@ function renderMain() {
 
   main.innerHTML = `
     <div class="scroll">
-      <header class="disc-head">
-        <div class="disc ${bd ? 'bd' : ''}"></div>
+      <header class="disc-head ${bd ? 'bd' : ''}">
+        <div class="disc-wrap" aria-hidden="true"><div class="disc ${bd ? 'bd' : ''}"></div><div class="disc-read"></div></div>
         <div class="disc-title">
-          <input id="discName" value="${esc(state.discName)}" spellcheck="false" title="Used for file names and the MKV title" aria-label="Disc name" />
+          <input id="discName" class="${state.discName.length > 22 ? 'long' : ''}" value="${esc(state.discName)}" spellcheck="false" title="Used for file names and the MKV title" aria-label="Disc name" />
           <div class="disc-meta">
             <span class="badge fmt ${bd ? 'bd' : ''}">${bd ? 'Blu-ray' : 'DVD'}</span>
             ${first ? `<span class="spec">${[first.video.standard, first.video.codec, first.video.aspect].filter((x) => x && x !== '?').map(esc).join(' · ')}</span>` : ''}
             <span class="vol" title="Volume label">${esc(d.label || '—')}</span>
           </div>
+        </div>
+        <div class="readout" role="status" aria-live="off" hidden>
+          <span class="r-pct">0%</span>
+          <span class="r-sub"><b class="r-what"></b><span class="r-eta"></span></span>
         </div>
         <div class="hero-stats">
           <div><span class="k">Titles</span><span class="v">${d.titles.length}</span></div>
@@ -279,7 +283,23 @@ function actionBar() {
 // Live rip status inside each title card, updated in place so focus and typing survive.
 function updateRipStates() {
   // The one orchestrated moment: the disc in the header spins while one of its titles rips.
-  $('.disc-head')?.classList.toggle('ripping', state.queue.some((j) => j.source === state.source && j.state === 'ripping'));
+  // The disc is the progress display: discs are read from the hub outward, so the read
+  // band grows from the hub to the rim while the header disc spins.
+  const head = $('.disc-head');
+  const live = state.queue.find((j) => j.source === state.source && j.state === 'ripping');
+  if (head) {
+    head.classList.toggle('ripping', !!live);
+    $('.readout', head).hidden = !live;
+    $('.hero-stats', head).hidden = !!live;
+    const p = live ? Math.max(0, Math.min(1, live.progress || 0)) : 0;
+    $('.disc-wrap', head).style.setProperty('--read', p.toFixed(4));
+    if (live) {
+      const elapsed = (Date.now() - live.startedAt) / 1000;
+      $('.r-pct', head).textContent = `${Math.floor(p * 100)}%`;
+      $('.r-what', head).textContent = `Reading title ${live.title}`;
+      $('.r-eta', head).textContent = [live.speed ? `${live.speed.toFixed(1)}×` : '', p > 0.01 ? `${fmtEta((elapsed * (1 - p)) / p)} left` : 'starting'].filter(Boolean).join(', ');
+    }
+  }
   for (const row of $$('.title-row')) {
     const j = jobFor(+row.dataset.title);
     const st = j?.state;
@@ -587,7 +607,7 @@ document.addEventListener('change', (e) => {
 
 document.addEventListener('input', (e) => {
   const el = e.target;
-  if (el.id === 'discName') { state.discName = el.value; refreshFileNames(); }
+  if (el.id === 'discName') { state.discName = el.value; el.classList.toggle('long', el.value.length > 22); refreshFileNames(); }
   if (el.dataset.filename) state.fileNames.set(+el.dataset.filename, el.value);
 });
 

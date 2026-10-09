@@ -361,15 +361,42 @@ kbd {
    ========================================================================== */
 .scroll { flex: 1; overflow-y: auto; padding-bottom: 120px; scroll-padding-top: 64px; }
 
-.disc-head { display: flex; gap: 24px; align-items: center; padding: 52px 40px 26px; }
-.disc-head .disc { --size: 104px; }
+.disc-head { position: relative; display: flex; gap: var(--space-6); align-items: center; padding: var(--space-8) var(--space-7) var(--space-5); isolation: isolate; }
+/* the disc's mood behind the header: warm for DVD, violet for Blu-ray */
+.disc-head::before {
+  content: ""; position: absolute; z-index: -1; left: -60px; top: -40px; width: 520px; height: 360px; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent);
+  transition: opacity 0.6s var(--ease); opacity: 0.8;
+}
+.disc-head.bd::before { background: radial-gradient(closest-side, rgba(130, 110, 255, 0.2), transparent); }
+.disc-head.ripping::before { opacity: 1; }
+.disc-wrap { --read: 0; position: relative; flex: none; width: 196px; height: 196px; }
+.disc-head .disc { --size: 196px; }
+/* read band: from the hub (31%) outward to the rim (97%). Read area warm, laser edge bright, unread area dimmed. */
+.disc-read {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.4s var(--ease);
+  background: radial-gradient(circle closest-side,
+    transparent 0 31%,
+    color-mix(in srgb, var(--accent) 42%, transparent) 31% calc(31% + var(--read) * 66%),
+    #fff3d6 calc(31% + var(--read) * 66%) calc(32% + var(--read) * 66%),
+    color-mix(in srgb, var(--accent-hi) 70%, transparent) calc(32% + var(--read) * 66%) calc(33.2% + var(--read) * 66%),
+    rgba(0, 0, 0, 0.26) calc(33.2% + var(--read) * 66%) 97%,
+    transparent 97.5%);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 11%, #000 11.6%);
+}
+.disc-head.ripping .disc-read { opacity: 1; }
+.readout { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-right: var(--space-2); }
+.r-pct { font-family: var(--display); font-weight: 800; font-stretch: 70%; font-size: 64px; line-height: 0.95; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+.r-sub { display: flex; flex-direction: column; align-items: flex-end; color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.r-what { color: var(--text); font-weight: 600; }
 .disc-title { flex: 1; min-width: 0; }
 .disc-title input {
   width: 100%; background: transparent; border: 1px solid transparent; border-radius: 10px;
-  font-family: var(--display); font-size: 34px; font-weight: 760; font-stretch: 78%; letter-spacing: -0.01em; line-height: 1.1;
+  font-family: var(--display); font-size: 52px; font-weight: 800; font-stretch: 72%; letter-spacing: -0.005em; line-height: 1;
   padding: 2px 10px; margin: 0 0 6px -11px; text-overflow: ellipsis;
   transition: border-color 0.15s, background 0.15s;
 }
+.disc-title input.long { font-size: 38px; }
 .disc-title input:hover { border-color: var(--line); }
 .disc-title input:focus { border-color: var(--accent-line); background: var(--surface); box-shadow: 0 0 0 4px var(--accent-soft); }
 .disc-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; color: var(--text-2); }
@@ -684,6 +711,10 @@ dialog::backdrop { background: var(--scrim); backdrop-filter: blur(6px); animati
 
 @media (max-width: 1100px) {
   .hero-stats { display: none; }
+  .disc-wrap { width: 140px; height: 140px; }
+  .disc-head .disc { --size: 140px; }
+  .disc-title input { font-size: 40px; }
+  .r-pct { font-size: 48px; }
   .features { grid-template-columns: repeat(3, minmax(0, 150px)); gap: 18px; }
   .cap-bar { display: none; }
 }
