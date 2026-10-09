@@ -97,41 +97,43 @@ function isPe64Dll(buf) {
 
 function createPlatform({ run, platform = process.platform, home = os.homedir(), env = process.env, dataDir }) {
   const isMac = platform === 'darwin', isWin = platform === 'win32', isLinux = platform === 'linux';
+  // Paths follow the target OS's rules (this also lets tests model one OS on another).
+  const P = isWin ? path.win32 : path.posix;
   const exists = (p) => { try { fs.accessSync(p); return true; } catch { return false; } };
   const realOrSelf = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
 
   // Decryption caches and the user's own libaacs/libbdplus key folders.
   let cssCache, keyDirs;
   if (isMac) {
-    const L = path.join(home, 'Library');
-    cssCache = path.join(L, 'Caches', 'dvdcss');
-    keyDirs = { aacsConf: path.join(L, 'Preferences', 'aacs'), bdplusConf: path.join(L, 'Preferences', 'bdplus'),
-      aacsCache: path.join(L, 'Caches', 'aacs'), bdplusCache: path.join(L, 'Caches', 'bdplus') };
+    const L = P.join(home, 'Library');
+    cssCache = P.join(L, 'Caches', 'dvdcss');
+    keyDirs = { aacsConf: P.join(L, 'Preferences', 'aacs'), bdplusConf: P.join(L, 'Preferences', 'bdplus'),
+      aacsCache: P.join(L, 'Caches', 'aacs'), bdplusCache: P.join(L, 'Caches', 'bdplus') };
   } else if (isWin) {
-    const roaming = env.APPDATA || path.join(home, 'AppData', 'Roaming');
-    const local = env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
-    cssCache = path.join(local, 'dvdcss');
-    keyDirs = { aacsConf: path.join(roaming, 'aacs'), bdplusConf: path.join(roaming, 'bdplus'),
-      aacsCache: path.join(roaming, 'aacs'), bdplusCache: path.join(roaming, 'bdplus') };
+    const roaming = env.APPDATA || P.join(home, 'AppData', 'Roaming');
+    const local = env.LOCALAPPDATA || P.join(home, 'AppData', 'Local');
+    cssCache = P.join(local, 'dvdcss');
+    keyDirs = { aacsConf: P.join(roaming, 'aacs'), bdplusConf: P.join(roaming, 'bdplus'),
+      aacsCache: P.join(roaming, 'aacs'), bdplusCache: P.join(roaming, 'bdplus') };
   } else {
-    const config = env.XDG_CONFIG_HOME || path.join(home, '.config');
-    const cache = env.XDG_CACHE_HOME || path.join(home, '.cache');
-    cssCache = path.join(cache, 'dvdcss');
-    keyDirs = { aacsConf: path.join(config, 'aacs'), bdplusConf: path.join(config, 'bdplus'),
-      aacsCache: path.join(cache, 'aacs'), bdplusCache: path.join(cache, 'bdplus') };
+    const config = env.XDG_CONFIG_HOME || P.join(home, '.config');
+    const cache = env.XDG_CACHE_HOME || P.join(home, '.cache');
+    cssCache = P.join(cache, 'dvdcss');
+    keyDirs = { aacsConf: P.join(config, 'aacs'), bdplusConf: P.join(config, 'bdplus'),
+      aacsCache: P.join(cache, 'aacs'), bdplusCache: P.join(cache, 'bdplus') };
   }
   // Windows only: a per-user folder for libdvdcss-2.dll, put on the engine's DLL search path.
-  const userLib = isWin ? path.join(dataDir || path.join(env.APPDATA || home, 'Spinarr'), 'lib') : null;
+  const userLib = isWin ? P.join(dataDir || P.join(env.APPDATA || home, 'Spinarr'), 'lib') : null;
 
   // Engines get a minimal environment: nothing inherited (no DYLD_*/LD_*, no proxies, no secrets).
   let engineEnv;
   if (isWin) {
     const sys = env.SystemRoot || 'C:\\Windows';
-    engineEnv = { SystemRoot: sys, PATH: [userLib, path.join(sys, 'System32'), sys].join(';'), USERPROFILE: home,
+    engineEnv = { SystemRoot: sys, PATH: [userLib, P.join(sys, 'System32'), sys].join(';'), USERPROFILE: home,
       APPDATA: env.APPDATA || '', LOCALAPPDATA: env.LOCALAPPDATA || '', TEMP: os.tmpdir(), TMP: os.tmpdir(), DVDCSS_CACHE: cssCache };
   } else {
     engineEnv = { HOME: home, PATH: '/usr/bin:/bin', LANG: isMac ? 'en_US.UTF-8' : 'C.UTF-8', DVDCSS_CACHE: cssCache };
-    if (isLinux) Object.assign(engineEnv, { XDG_CONFIG_HOME: path.dirname(keyDirs.aacsConf), XDG_CACHE_HOME: path.dirname(cssCache) });
+    if (isLinux) Object.assign(engineEnv, { XDG_CONFIG_HOME: P.dirname(keyDirs.aacsConf), XDG_CACHE_HOME: P.dirname(cssCache) });
   }
 
   // ----- sandbox -----
@@ -166,7 +168,7 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
     try { vols = fs.readdirSync('/Volumes'); } catch {}
     for (const v of vols) {
       if (!allowed(v)) continue;
-      const p = path.join('/Volumes', v);
+      const p = P.join('/Volumes', v);
       const media = lib.sourceKind(p);
       if (!media) continue;
       let kind = 'other';
@@ -186,7 +188,7 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
       for (const base of [`/run/media/${user}`, `/media/${user}`, '/media']) {
         let names = [];
         try { names = fs.readdirSync(base); } catch {}
-        for (const n of names) devs.push({ device: null, type: 'other', label: n, mount: path.join(base, n) });
+        for (const n of names) devs.push({ device: null, type: 'other', label: n, mount: P.join(base, n) });
       }
     }
     const out = [];
@@ -194,7 +196,7 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
     for (const d of devs) {
       if (!d.mount || seen.has(d.mount)) continue;
       seen.add(d.mount);
-      const name = d.label || path.basename(d.mount);
+      const name = d.label || P.basename(d.mount);
       if (!allowed(name)) continue;
       const media = lib.sourceKind(d.mount);
       if (!media) continue;
@@ -266,13 +268,13 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
       return { installed, command: DVDCSS_COMMANDS.darwin };
     }
     if (isWin) {
-      return { installed: exists(path.join(userLib, 'libdvdcss-2.dll')), url: VIDEOLAN_WIN64, canPick: true };
+      return { installed: exists(P.join(userLib, 'libdvdcss-2.dll')), url: VIDEOLAN_WIN64, canPick: true };
     }
     const dirs = ['/usr/lib/x86_64-linux-gnu', '/usr/lib/aarch64-linux-gnu', '/lib/x86_64-linux-gnu', '/lib/aarch64-linux-gnu',
       '/usr/lib64', '/usr/lib', '/usr/local/lib'];
     let family = 'other';
     try { family = distroFamily(fs.readFileSync('/etc/os-release', 'utf8')); } catch {}
-    return { installed: dirs.some((d) => exists(path.join(d, 'libdvdcss.so.2'))), command: DVDCSS_COMMANDS[family] };
+    return { installed: dirs.some((d) => exists(P.join(d, 'libdvdcss.so.2'))), command: DVDCSS_COMMANDS[family] };
   }
 
   // Windows: copy a user-chosen libdvdcss-2.dll into the engine's DLL folder after checking it.
@@ -281,7 +283,7 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
     const buf = fs.readFileSync(file);
     if (buf.length > 8 * 1024 * 1024 || !isPe64Dll(buf)) throw new Error('That is not a 64-bit libdvdcss DLL.');
     fs.mkdirSync(userLib, { recursive: true });
-    fs.writeFileSync(path.join(userLib, 'libdvdcss-2.dll'), buf);
+    fs.writeFileSync(P.join(userLib, 'libdvdcss-2.dll'), buf);
   }
 
   return {

@@ -137,7 +137,20 @@ const runEngine = (name, args, ctx, opts = {}) => run(...engine(name, args, ctx)
 const listDrives = () => platform.listDrives();
 let stopWatching;
 function watchVolumes() {
-  stopWatching = platform.watch(async () => send('drives-changed', await listDrives()));
+  stopWatching = platform.watch(async () => {
+    abandonVanishedSource();
+    send('drives-changed', await listDrives());
+  });
+}
+
+// A pulled disc doesn't always make reads fail: some drives (and force-detached images)
+// just block. So when the source of the running rip disappears, stop it ourselves.
+function abandonVanishedSource() {
+  const job = active;
+  if (!job || job.state !== 'ripping' || !job.proc) return;
+  let gone;
+  try { gone = fs.statSync(job.source).isDirectory() ? !lib.sourceKind(job.source) : false; } catch { gone = true; }
+  if (gone) { job.vanished = true; stopProcess(job.proc); }
 }
 
 // ---------- scanning ----------
@@ -339,6 +352,7 @@ function start(job, args, part, final) {
     delete job.proc;
     if (job.chaptersFile) fs.rmSync(job.chaptersFile, { force: true });
     if (job.state === 'cancelled') { fs.rmSync(part, { force: true }); return finish(job, 'cancelled'); }
+    if (job.vanished) { fs.rmSync(part, { force: true }); return finish(job, 'failed', 'The disc was removed before the rip finished.'); }
     // Verify the finished file itself: how much video did it actually get?
     let videoSeconds = null;
     if (code === 0 && !signal) {
