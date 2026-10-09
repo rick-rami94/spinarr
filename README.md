@@ -1,5 +1,32 @@
 # Spinarr
 
+<p align="center">
+  <a href="https://github.com/rick-rami94/spinarr/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/rick-rami94/spinarr/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/rick-rami94/spinarr/actions/workflows/release.yml"><img alt="Release build" src="https://github.com/rick-rami94/spinarr/actions/workflows/release.yml/badge.svg"></a>
+  <a href="https://github.com/rick-rami94/spinarr/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/rick-rami94/spinarr?display_name=tag&sort=semver&color=ffb547"></a>
+  <a href="https://github.com/rick-rami94/spinarr/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/rick-rami94/spinarr/total?color=ffb547"></a>
+  <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/github/license/rick-rami94/spinarr?color=blue"></a>
+</p>
+<p align="center">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-12%2B%20·%20arm64%20%7C%20x64-000000?logo=apple&logoColor=white">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%7C%2011%20·%20x64-0078D4?logo=windows&logoColor=white">
+  <img alt="Linux" src="https://img.shields.io/badge/Linux-AppImage%20%7C%20deb%20·%20x64%20%7C%20arm64-FCC624?logo=linux&logoColor=black">
+</p>
+<p align="center">
+  <img alt="Electron 44" src="https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white">
+  <img alt="Node 20+" src="https://img.shields.io/badge/Node-%E2%89%A520-5FA04E?logo=nodedotjs&logoColor=white">
+  <img alt="FFmpeg 8" src="https://img.shields.io/badge/FFmpeg-8.0.1-007808?logo=ffmpeg&logoColor=white">
+  <img alt="Lossless remux" src="https://img.shields.io/badge/output-lossless%20MKV-8A2BE2">
+  <img alt="Sandboxed engine" src="https://img.shields.io/badge/engine-sandboxed%20(macOS%2C%20Linux)-2ea44f">
+  <img alt="Fuzz tested" src="https://img.shields.io/badge/parsers-fuzz%20tested-2ea44f">
+</p>
+<p align="center">
+  <a href="https://github.com/rick-rami94/spinarr/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/rick-rami94/spinarr"></a>
+  <a href="https://github.com/rick-rami94/spinarr/issues"><img alt="Issues" src="https://img.shields.io/github/issues/rick-rami94/spinarr"></a>
+  <a href="CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen"></a>
+  <a href="https://github.com/rick-rami94/spinarr/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/rick-rami94/spinarr?style=social"></a>
+</p>
+
 **An open-source DVD and Blu-ray → MKV ripper for macOS, Windows and Linux, with a modern UI.** It's a friendlier, auditable take on MakeMKV.
 
 Spinarr copies titles **losslessly**. You get the original MPEG-2 video, every audio track (AC3, DTS, LPCM, MPEG), VobSub subtitles, chapters and language tags, remuxed into MKV with no re-encoding. The test suite proves it: decoded video is bit-identical to the source, and every audio packet survives byte for byte.
