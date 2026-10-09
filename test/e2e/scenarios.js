@@ -74,7 +74,8 @@ Object.assign(module.exports, {
         `spinarr.rip(Array(200).fill({ source: ${JSON.stringify(src)}, title: 1 }))`,
         `spinarr.eject('/')`, `spinarr.eject('/Volumes/Macintosh HD')`,
         `spinarr.pickSource('evil')`, `spinarr.pickSource({})`,
-        `spinarr.installDvdcss()`, // macOS: there is nothing to install, so it refuses before any dialog
+        // Only Windows takes a user-chosen DLL (behind a file dialog); elsewhere it refuses outright.
+        ...(process.platform === 'win32' ? [] : [`spinarr.installDvdcss()`]),
       ];
       for (const expr of rejects) {
         const r = await call(h, expr);
