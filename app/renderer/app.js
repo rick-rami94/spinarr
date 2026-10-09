@@ -128,7 +128,7 @@ function renderMain() {
       <div class="empty">
         <div class="disc xl"></div>
         <h1>Insert a DVD or Blu-ray</h1>
-        <p>Spinarr copies titles to MKV losslessly — every audio track, subtitle and chapter, bit for bit.</p>
+        <p>Spinarr copies each title to MKV exactly as it is on the disc, with every audio track, subtitle and chapter.</p>
         ${state.error ? `<div class="error-box" role="alert">${ICON.alert}<div><b>Couldn't read this source</b><span>${esc(state.error)}</span></div></div>` : ''}
         <div class="cta">
           ${IS_MAC ? `<button class="primary-btn" data-action="open">${ICON.folder} Open image or folder <kbd>${keys('⌘O')}</kbd></button>`
@@ -269,7 +269,7 @@ function actionBar() {
       </button>
       <div class="capacity ${low ? 'warn' : ''}">
         ${low ? `<div class="d-warn">${ICON.alert} There's not enough space here</div>`
-          : free != null ? `<div class="cap-bar" title="Share of free space this rip needs"><div style="width:${pct}%"></div></div>` : ''}
+          : free != null ? `<div class="cap-bar" title="Share of free space this rip needs"><div style="transform:scaleX(${Math.max(0.01, pct / 100)})"></div></div>` : ''}
         <div class="d-sub">${n ? `${fmtBytes(bytes)} needed` : 'Nothing selected'}${free != null ? ` · ${fmtBytes(free)} free` : ''}</div>
       </div>
       <button class="primary-btn" data-action="rip" ${n && !low && !blocked ? '' : 'disabled'}>${ICON.rip} Rip ${n ? plural(n, 'title') : ''} <kbd>${keys('⌘↩')}</kbd></button>
@@ -278,6 +278,8 @@ function actionBar() {
 
 // Live rip status inside each title card, updated in place so focus and typing survive.
 function updateRipStates() {
+  // The one orchestrated moment: the disc in the header spins while one of its titles rips.
+  $('.disc-head')?.classList.toggle('ripping', state.queue.some((j) => j.source === state.source && j.state === 'ripping'));
   for (const row of $$('.title-row')) {
     const j = jobFor(+row.dataset.title);
     const st = j?.state;
@@ -291,7 +293,7 @@ function updateRipStates() {
     const slot = $('.rip-state', row);
     if (slot && slot.innerHTML !== badge) slot.innerHTML = badge;
     const prog = $('.prog', row);
-    if (prog) prog.style.width = st === 'ripping' ? `${j.progress * 100}%` : '0';
+    if (prog) prog.style.transform = `scaleX(${st === 'ripping' ? Math.max(0, Math.min(1, j.progress)) : 0})`;
   }
 }
 
@@ -311,7 +313,7 @@ const seenJobs = new Set(); // only newly added jobs animate in; the list re-ren
 function renderQueue() {
   const list = $('#queueList');
   const active = state.queue.filter((j) => ['queued', 'ripping'].includes(j.state)).length;
-  $('#queueCount').textContent = active ? `· ${active} active` : '';
+  $('#queueCount').textContent = active ? `${active} active` : '';
   $('#clearBtn').hidden = !state.queue.some((j) => !['queued', 'ripping'].includes(j.state));
   if (!state.queue.length) { list.innerHTML = `<div class="q-empty">Titles you rip will appear here, with progress and a link to the finished file.</div>`; return; }
   list.innerHTML = state.queue.map((j) => {
@@ -333,7 +335,7 @@ function renderQueue() {
     return `
       <div class="job ${j.state}${seenJobs.has(j.id) ? '' : ' enter'}">
         <div class="job-top">${ico}<div class="job-name" title="${esc(j.fileName)}">${esc(j.fileName)}</div>${btn}</div>
-        <div class="bar"><div style="width:${j.progress * 100}%"></div></div>
+        <div class="bar"><div style="transform:scaleX(${Math.max(0, Math.min(1, j.progress))})"></div></div>
         <div class="job-state"><span>${status}</span><span>${right}</span></div>
         ${j.error ? `<div class="job-err">${esc(j.error)}</div>` : ''}
       </div>`;
