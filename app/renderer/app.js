@@ -180,7 +180,8 @@ function renderMain() {
         <label class="pill"><input type="checkbox" data-toggle="showShort" ${state.showShort ? 'checked' : ''}/>${pip}Short titles</label>
         <label class="pill"><input type="checkbox" data-toggle="showDups" ${state.showDups ? 'checked' : ''}/>${pip}Duplicates</label>
       </div>
-      ${d.blocked ? `<div class="error-box banner" role="alert">${ICON.alert}<div><b>This disc can't be ripped</b><span>${esc(d.blocked)}</span></div></div>` : ''}
+      ${d.blocked ? `<div class="error-box banner" role="alert">${ICON.alert}<div><b>This disc can't be ripped</b><span>${esc(d.blocked)}</span>
+        ${d.keydbFixable ? `<div class="row-btns"><button class="ghost-btn" data-action="keydb-pick">Choose KEYDB.cfg…</button></div>` : ''}</div></div>` : ''}
       <div class="titles ${state.fresh ? 'fresh' : ''}" role="list">${titles.map((t, i) => titleRow(t, longest, i)).join('')}</div>
     </div>
     ${actionBar()}`;
@@ -370,12 +371,22 @@ function renderSystem() {
          <div class="row-btns"><button type="button" class="ghost-btn" data-action="dvdcss-page">Open VideoLAN download</button>
          <button type="button" class="ghost-btn" data-action="dvdcss-pick">Choose DLL…</button></div>`
       : `Needed for most commercial DVDs. Spinarr doesn't ship it. Install it with:${cmd(d.command)}`;
+  const a = sys.aacs;
+  const aacsBody = !a.libaacs
+    ? `Needed only for encrypted Blu-rays. Install libaacs, then add your own key file.${cmd(a.command)}`
+    : a.keydb
+      ? `Using your key file at <code class="path">${esc(tilde(a.keydbPath))}</code>.
+         <div class="row-btns"><button type="button" class="ghost-btn" data-action="keydb-pick">Replace KEYDB.cfg…</button></div>`
+      : `Spinarr doesn't include decryption keys. Choose your own KEYDB.cfg and Spinarr copies it to where libaacs looks.
+         <div class="row-btns"><button type="button" class="ghost-btn" data-action="keydb-pick">Choose KEYDB.cfg…</button></div>`;
   $('#systemGroup').innerHTML = `
     <div class="group-row top">${ok(sys.sandbox !== 'none' || sys.platform === 'win32')}
       <div class="gr-text"><b>Engine sandbox <span class="pill-state">${sandboxText}</span></b><small>${sandboxNote}</small>
       ${sys.bwrapHelp ? cmd(sys.bwrapHelp) : ''}</div></div>
     <div class="group-row top">${ok(d.installed)}
-      <div class="gr-text"><b>DVD decryption <span class="pill-state">${d.installed ? 'libdvdcss installed' : 'Not installed'}</span></b><small>${dvdcssBody}</small></div></div>`;
+      <div class="gr-text"><b>DVD decryption <span class="pill-state">${d.installed ? 'libdvdcss installed' : 'Not installed'}</span></b><small>${dvdcssBody}</small></div></div>
+    <div class="group-row top">${ok(a.libaacs && a.keydb)}
+      <div class="gr-text"><b>Blu-ray decryption <span class="pill-state">${!a.libaacs ? 'libaacs not installed' : a.keydb ? 'Key file found' : 'No key file'}</span></b><small>${aacsBody}</small></div></div>`;
   $('#setupBtn').hidden = d.installed && !sys.bwrapHelp;
 }
 
@@ -540,6 +551,17 @@ document.addEventListener('click', async (e) => {
     case 'dvdcss-pick':
       try { state.system = await spinarr.installDvdcss(); renderSystem(); if (state.system.dvdcss.installed) toast('ok', '<b>libdvdcss installed.</b> Encrypted DVDs can now be read.'); }
       catch (err) { toast('bad', esc(cleanErr(err))); }
+      break;
+    case 'keydb-pick':
+      try {
+        const info = await spinarr.installKeydb();
+        state.system = info;
+        renderSystem();
+        if (info.installed) {
+          toast('ok', '<b>Key file installed.</b> Blu-rays it covers can now be opened.');
+          if (state.disc?.blocked && state.source) loadSource(state.source); // try the disc again
+        }
+      } catch (err) { toast('bad', esc(cleanErr(err))); }
       break;
     case 'copy': navigator.clipboard.writeText(t.dataset.copy || ''); t.textContent = 'Copied'; setTimeout(() => { t.textContent = 'Copy'; }, 1500); break;
     case 'output': {

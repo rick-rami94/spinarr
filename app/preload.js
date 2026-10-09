@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('spinarr', {
   freeSpace: invoke('free-space'),
   system: invoke('system'),
   installDvdcss: invoke('install-dvdcss'),
+  installKeydb: invoke('install-keydb'),
   openDvdcssPage: invoke('open-dvdcss-page'),
   platform: process.platform,
   pathForFile: (f) => webUtils.getPathForFile(f),

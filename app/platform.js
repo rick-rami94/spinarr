@@ -93,6 +93,25 @@ function isPe64Dll(buf) {
   return (machine === 0x8664 || machine === 0xaa64) && (characteristics & 0x2000) !== 0; // IMAGE_FILE_DLL
 }
 
+// Does this look like a libaacs KEYDB.cfg? Text (no NUL bytes) with at least one disc entry
+// ("0x<40 hex> = ...") or a key section ("| DK |", "| PK |", "| HC |"). Only the first 1 MB is checked.
+function looksLikeKeydb(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 8) return false;
+  const head = buf.subarray(0, 1024 * 1024);
+  if (head.includes(0)) return false;
+  const text = head.toString('latin1');
+  return /^\s*0x[0-9a-f]{40}\s*=/im.test(text) || /^\s*\|\s*(DK|PK|HC)\s*\|/im.test(text);
+}
+
+const AACS_COMMANDS = {
+  darwin: 'brew install libaacs',
+  debian: 'sudo apt install libaacs0',
+  fedora: 'sudo dnf install libaacs',
+  arch: 'sudo pacman -S libaacs',
+  suse: 'sudo zypper install libaacs0',
+  other: 'Install libaacs (libaacs.so.0) from your distribution',
+};
+
 // ---------- per-platform implementation ----------
 
 function createPlatform({ run, platform = process.platform, home = os.homedir(), env = process.env, dataDir }) {
@@ -277,6 +296,37 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
     return { installed: dirs.some((d) => exists(P.join(d, 'libdvdcss.so.2'))), command: DVDCSS_COMMANDS[family] };
   }
 
+  // ----- AACS (Blu-ray): the user's own libaacs and KEYDB.cfg; Spinarr ships neither -----
+  const keydbPath = P.join(keyDirs.aacsConf, 'KEYDB.cfg');
+  function aacs() {
+    let installed;
+    if (isMac) installed = ['/opt/homebrew/lib/libaacs.0.dylib', '/usr/local/lib/libaacs.0.dylib'].some(exists);
+    else if (isWin) installed = exists(P.join(userLib, 'libaacs.dll'));
+    else installed = ['/usr/lib/x86_64-linux-gnu', '/usr/lib/aarch64-linux-gnu', '/usr/lib64', '/usr/lib', '/usr/local/lib']
+      .some((d) => exists(P.join(d, 'libaacs.so.0')));
+    let family = isMac ? 'darwin' : 'other';
+    if (isLinux) { try { family = distroFamily(fs.readFileSync('/etc/os-release', 'utf8')); } catch {} }
+    return {
+      libaacs: installed, keydb: exists(keydbPath), keydbPath,
+      command: isWin ? `Put libaacs.dll in ${userLib}` : AACS_COMMANDS[family],
+    };
+  }
+
+  // Copy a user-chosen KEYDB.cfg to where libaacs reads it, after a format check.
+  function installKeydb(file) {
+    const st = fs.statSync(file);
+    if (!st.isFile() || st.size > 512 * 1024 * 1024) throw new Error('That file is not a KEYDB.cfg key file.');
+    const fd = fs.openSync(file, 'r');
+    const head = Buffer.alloc(Math.min(st.size, 1024 * 1024));
+    try { fs.readSync(fd, head, 0, head.length, 0); } finally { fs.closeSync(fd); }
+    if (!looksLikeKeydb(head)) throw new Error('That file is not a KEYDB.cfg key file.');
+    fs.mkdirSync(keyDirs.aacsConf, { recursive: true });
+    const tmp = `${keydbPath}.part`;
+    fs.copyFileSync(file, tmp);
+    fs.chmodSync(tmp, 0o600);
+    fs.renameSync(tmp, keydbPath);
+  }
+
   // Windows: copy a user-chosen libdvdcss-2.dll into the engine's DLL folder after checking it.
   function installDvdcss(file) {
     if (!isWin) throw new Error('Only needed on Windows');
@@ -289,10 +339,10 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
   return {
     platform, isMac, isWin, isLinux, cssCache, keyDirs, engineEnv, sandboxKind,
     exe: (name) => (isWin ? `${name}.exe` : name),
-    wrap, listDrives, watch, eject, dvdcss, installDvdcss,
+    wrap, listDrives, watch, eject, dvdcss, installDvdcss, aacs, installKeydb,
     // what the UI needs to show setup status
-    info: () => ({ platform, sandbox: sandboxKind, dvdcss: dvdcss(), bwrapHelp: isLinux && !BWRAP ? 'sudo apt install bubblewrap   # or dnf / pacman' : null }),
+    info: () => ({ platform, sandbox: sandboxKind, dvdcss: dvdcss(), aacs: aacs(), bwrapHelp: isLinux && !BWRAP ? 'sudo apt install bubblewrap   # or dnf / pacman' : null }),
   };
 }
 
-module.exports = { createPlatform, parseLsblk, parseWinDisks, distroFamily, bwrapArgs, isPe64Dll, DVDCSS_COMMANDS, VIDEOLAN_WIN64 };
+module.exports = { createPlatform, parseLsblk, parseWinDisks, distroFamily, bwrapArgs, isPe64Dll, looksLikeKeydb, DVDCSS_COMMANDS, VIDEOLAN_WIN64 };

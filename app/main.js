@@ -178,6 +178,9 @@ async function scan(source) {
   if (json.error) throw new Error(String(json.error));
   const result = { ...lib.analyzeTitles(json, source), type: json.type === 'bluray' ? 'bluray' : 'dvd', encryption: json.encryption || null };
   result.blocked = result.type === 'bluray' ? blurayBlocker(result.encryption) : null;
+  // The UI offers "Choose KEYDB.cfg…" when the user's own key file is what's missing.
+  const enc = result.encryption;
+  result.keydbFixable = !!(result.blocked && enc && enc.aacs && !enc.aacsHandled && enc.libaacs && ![-1, -6].includes(enc.aacsError));
   if (scans.size > 50) scans.delete(scans.keys().next().value);
   scans.set(source, result);
   return result;
@@ -429,6 +432,14 @@ handle('install-dvdcss', async () => {
   if (r.canceled || !r.filePaths[0]) return platform.info();
   platform.installDvdcss(r.filePaths[0]);
   return platform.info();
+});
+// Let the user hand us their own KEYDB.cfg (Spinarr never ships, downloads or links to keys).
+handle('install-keydb', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Choose your KEYDB.cfg', properties: ['openFile'],
+    filters: [{ name: 'Key file', extensions: ['cfg', 'txt'] }, { name: 'All files', extensions: ['*'] }] });
+  if (r.canceled || !r.filePaths[0]) return platform.info();
+  platform.installKeydb(r.filePaths[0]);
+  return { ...platform.info(), installed: true };
 });
 handle('open-dvdcss-page', () => { const u = platform.dvdcss().url; if (u) shell.openExternal(u); });
 // kind: 'any' (macOS dialogs can pick a file or a folder), or 'file' / 'folder' elsewhere.

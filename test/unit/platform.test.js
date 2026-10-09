@@ -91,3 +91,34 @@ test('createPlatform: per-OS folders, engine environment and executable names', 
   assert.equal(win.info().dvdcss.canPick, true);
   assert.deepEqual(win.wrap('C:\\e\\ffmpeg.exe', ['-v'], {}), ['C:\\e\\ffmpeg.exe', ['-v']]);
 });
+
+test('looksLikeKeydb accepts the KEYDB.cfg format and rejects anything else', () => {
+  const { looksLikeKeydb } = require('../../app/platform');
+  // Synthetic entries in the KEYDB.cfg layout: made-up values, not real keys.
+  const disc = `; comment\n0x${'ab'.repeat(20)} = SAMPLE DISC | D | 2020-01-01 | V | 0x${'00'.repeat(16)}\n`;
+  const section = '| DK | DEVICE_KEY 0x00000000000000000000000000000000 | DEVICE_NODE 0x0\n';
+  assert.equal(looksLikeKeydb(Buffer.from(disc)), true);
+  assert.equal(looksLikeKeydb(Buffer.from(section)), true);
+  assert.equal(looksLikeKeydb(Buffer.from('just some notes\nnothing to see\n')), false);
+  assert.equal(looksLikeKeydb(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0, 0, 0])), false, 'a zip, not the file inside it');
+  assert.equal(looksLikeKeydb(Buffer.from(disc + '\0')), false, 'binary');
+});
+
+test('installKeydb copies the user\'s own key file to where libaacs reads it, privately', () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-home-'));
+  try {
+    const src = path.join(home, 'Downloads-keydb.cfg');
+    fs.writeFileSync(src, `0x${'cd'.repeat(20)} = SAMPLE | D | 2020-01-01 | V | 0x${'11'.repeat(16)}\n`);
+    const linux = createPlatform({ run: async () => '', platform: process.platform === 'win32' ? 'win32' : 'linux', home, env: { APPDATA: path.join(home, 'AppData') }, dataDir: path.join(home, 'AppData', 'Spinarr') });
+    assert.equal(linux.aacs().keydb, false);
+    linux.installKeydb(src);
+    const a = linux.aacs();
+    assert.equal(a.keydb, true);
+    assert.equal(fs.readFileSync(a.keydbPath, 'utf8'), fs.readFileSync(src, 'utf8'));
+    if (process.platform !== 'win32') assert.equal(fs.statSync(a.keydbPath).mode & 0o777, 0o600);
+    const bogus = path.join(home, 'notes.txt');
+    fs.writeFileSync(bogus, 'hello');
+    assert.throws(() => linux.installKeydb(bogus), /not a KEYDB\.cfg/);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});

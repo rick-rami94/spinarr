@@ -39,7 +39,7 @@ Object.assign(module.exports, {
       h.assert.equal(r.ipc, 'undefined');
       h.assert.equal(r.href, 'app://spinarr/index.html');
       h.assert.ok(r.frozen, 'bridge object is frozen');
-      h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'on',
+      h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'installKeydb', 'on',
         'openDvdcssPage', 'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
       h.assert.equal(await h.js(`window.open('https://example.com') === null`), true, 'window.open is denied');
       for (const target of ['https://example.com', 'file:///etc/hosts', 'app://spinarr/../../etc/hosts']) {
@@ -449,6 +449,9 @@ Object.assign(module.exports, {
       // The reason depends on whether libaacs/KEYDB.cfg are installed here; it must always be specific.
       h.assert.match(await h.js(`document.querySelector('.error-box.banner').textContent`), /encrypted \(AACS\).*(libaacs|KEYDB\.cfg|AACS files|handshake)/);
       h.assert.equal(await h.js(`document.querySelector('[data-action="rip"]').disabled`), true);
+      // A missing or non-matching key file gets a one-click fix right in the banner.
+      h.assert.equal(await h.js(`!!document.querySelector('.error-box.banner [data-action="keydb-pick"]')`), false, 'no key-file button for a damaged-AACS disc');
+      h.assert.equal(await h.js(`state.disc.keydbFixable = true; renderMain(); !!document.querySelector('.error-box.banner [data-action="keydb-pick"]')`), true);
       await h.shot('encrypted');
       const r = await call(h, `spinarr.rip([{ source: state.source, title: 1, duration: 90, fileName: 'x', displayName: 'x' }])`);
       h.assert.equal(r.ok, false);
