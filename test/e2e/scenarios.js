@@ -123,6 +123,7 @@ Object.assign(module.exports, {
   },
 
   sec_xss_folder_name: {
+    platforms: ['darwin', 'linux'], // Windows doesn't allow < > " in file names, so the attack can't exist there
     stories: ['SEC-08'],
     title: 'HTML in a folder name is shown as text, never executed',
     async run(h) {

@@ -42,7 +42,7 @@ module.exports = async (win, app, ctx) => {
     await waitFor('!state.scanning', { what: 'scan to finish' });
   };
   const idle = (timeout = 60000) => waitFor(`state.queue.length > 0 && state.queue.every(j => !['queued','ripping'].includes(j.state))`, { timeout, what: 'queue idle' });
-  const probe = (file) => JSON.parse(execFileSync(path.join(process.env.ORACLE_FFMPEG_DIR || '/usr/local/bin', 'ffprobe'), ['-v', 'error', '-show_streams', '-show_chapters', '-show_format', '-of', 'json', file]));
+  const probe = (file) => JSON.parse(execFileSync(path.join(process.env.ORACLE_FFMPEG_DIR || '/usr/local/bin', process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'), ['-v', 'error', '-show_streams', '-show_chapters', '-show_format', '-of', 'json', file]));
   const note = (s) => result.notes.push(s);
 
   const h = { win, app, ctx, js, waitFor, shot, click, load, idle, probe, note, sleep, assert, fx: (n) => path.join(FX, n), outDir, launch };
