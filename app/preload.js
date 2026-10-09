@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('spinarr', {
   pickSource: invoke('pick-source'),
   pickOutput: invoke('pick-output'),
   freeSpace: invoke('free-space'),
+  system: invoke('system'),
+  installDvdcss: invoke('install-dvdcss'),
+  openDvdcssPage: invoke('open-dvdcss-page'),
+  platform: process.platform,
   pathForFile: (f) => webUtils.getPathForFile(f),
   on: (ch, fn) => {
     if (!EVENTS.has(ch)) throw new Error(`Unknown event ${ch}`);

@@ -6,7 +6,7 @@ Spinarr parses untrusted data: the structure of any disc or disk image you open.
 
 Please **don't open a public issue**. Report it privately through GitHub's **Security → Report a vulnerability** on this repository. Include:
 
-- The Spinarr version or commit, and your macOS version.
+- The Spinarr version or commit, and your operating system and version.
 - A minimal reproducer, ideally just the `VIDEO_TS/*.IFO` files (a few KB) rather than a whole disc.
 - What happens (crash, sanitizer trace, sandbox escape, file written outside the output folder…).
 
@@ -20,11 +20,13 @@ Only the latest release gets security fixes.
 
 The full threat model and test results are in [docs/SECURITY_TESTING.md](docs/SECURITY_TESTING.md). In short:
 
-- **The engine runs in a sandbox.** `dvdinfo`, `ffprobe` and `ffmpeg` run under a macOS sandbox profile:
-  - no network, no fork/exec
+- **The engine runs in a sandbox** where the OS allows it. `dvdinfo`, `bdinfo`, `ffprobe` and `ffmpeg` get:
+  - no network
   - no reading user data except the chosen source
-  - writes only to the output folder and libdvdcss's key cache
+  - writes only to the output folder and the decryption libraries' caches
   - a minimal environment
+
+  On **macOS** this is a sandbox profile (`app/lib.js`), which also blocks fork/exec. On **Linux** it's bubblewrap (`app/platform.js`): new user, PID, network, IPC and mount namespaces, with `/usr` and the source read-only and all capabilities dropped. If bubblewrap isn't installed, the engine runs unsandboxed and **Settings → System** says so. **Windows** has no engine sandbox yet, and Settings says that too.
 - **Patched, fuzzed parsers.** libdvdread is built from pinned, checksum-verified source with Spinarr's memory-safety patches (`engine/patches/`). The patches came from AddressSanitizer fuzzing, and the crash corpus runs as a regression suite (`test/fixtures/malicious/`).
 - **A locked-down UI process.** It runs with:
   - the Electron sandbox and context isolation, and no Node.js

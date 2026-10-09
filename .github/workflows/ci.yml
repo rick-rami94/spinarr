@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  macos:
     runs-on: macos-14
     timeout-minutes: 60
     env:
@@ -49,8 +49,100 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-report
+          name: e2e-report-macos
           path: test/reports/
+
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      ORACLE_FFMPEG_DIR: /usr/bin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install build and test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential ninja-build nasm pkg-config patch xz-utils \
+            ffmpeg dvdauthor genisoimage fonts-dejavu-core cmake libfreetype-dev zlib1g-dev bubblewrap xvfb
+          pip3 install --user 'meson>=1.3'
+
+      - name: Cache engine dependencies
+        uses: actions/cache@v4
+        with:
+          path: engine/deps/*.tar.xz
+          key: engine-src-${{ hashFiles('engine/build.sh') }}
+
+      - run: npm ci
+      - name: Build engine (verified sources + patches)
+        run: npm run engine
+      - name: Generate test DVDs and Blu-rays
+        run: npm run fixtures
+
+      - run: npm run test:unit
+      - run: npm run test:security
+      - run: npm run test:engine
+      - name: End-to-end (real app under Xvfb, engine in bubblewrap)
+        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:e2e
+
+      - name: Upload e2e report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-linux
+          path: test/reports/
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make patch tar xz curl diffutils
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-meson mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-nasm mingw-w64-x86_64-pkgconf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache engine dependencies
+        uses: actions/cache@v4
+        with:
+          path: engine/deps/*.tar.xz
+          key: engine-src-win-${{ hashFiles('engine/build.sh') }}
+
+      - name: Build engine (verified sources + patches)
+        shell: msys2 {0}
+        env:
+          CC: gcc
+        run: sh engine/build.sh
+
+      - run: npm ci
+      - run: npm run test:unit
+      - name: Engine smoke test
+        shell: bash
+        run: |
+          engine/bin/ffmpeg.exe -hide_banner -version | head -1
+          out=$(engine/bin/dvdinfo.exe "C:/no/such/disc" || true); echo "$out"; echo "$out" | grep -q '"error"'
+          out=$(engine/bin/bdinfo.exe "C:/no/such/disc" || true); echo "$out"; echo "$out" | grep -q '"error"'
+      - name: Package (unpacked) to check the installer config
+        run: npx electron-builder --win --dir --publish never
 
   audit:
     runs-on: ubuntu-latest
@@ -61,4 +153,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm audit --audit-level=moderate
+      - name: Shipped code
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Build and test tooling
+        run: npm audit --audit-level=high

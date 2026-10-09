@@ -1,12 +1,45 @@
 # Spinarr
 
-**An open-source DVD and Blu-ray → MKV ripper for macOS with a modern UI.** It's a friendlier, auditable take on MakeMKV.
+**An open-source DVD and Blu-ray → MKV ripper for macOS, Windows and Linux, with a modern UI.** It's a friendlier, auditable take on MakeMKV.
 
 Spinarr copies titles **losslessly**. You get the original MPEG-2 video, every audio track (AC3, DTS, LPCM, MPEG), VobSub subtitles, chapters and language tags, remuxed into MKV with no re-encoding. The test suite proves it: decoded video is bit-identical to the source, and every audio packet survives byte for byte.
 
 <p align="center">
   <img src="docs/screenshots/disc.png" alt="Spinarr showing a Blu-ray's main feature with its audio and subtitle tracks expanded" width="900">
 </p>
+
+## Install
+
+Download the installer for your computer from the **[latest release](https://github.com/rick-rami94/spinarr/releases/latest)**. Everything Spinarr needs is inside: there's nothing to build.
+
+| Your computer | Download |
+|---|---|
+| Mac with Apple silicon (M1 and later), macOS 12+ | `Spinarr-<version>-mac-arm64.dmg` |
+| Mac with an Intel chip, macOS 12+ | `Spinarr-<version>-mac-x64.dmg` |
+| Windows 10 or 11 (64-bit) | `Spinarr-<version>-win-x64.exe` |
+| Linux: Ubuntu, Debian, Mint, Pop!_OS | `Spinarr-<version>-linux-<arch>.deb` |
+| Linux: any other distribution | `Spinarr-<version>-linux-<arch>.AppImage` |
+
+Releases aren't code-signed yet, so the first launch takes one extra step:
+
+- **macOS:** open the `.dmg` and drag Spinarr to Applications. The first time, right-click it and choose **Open**. On macOS 15 or later, go to **System Settings → Privacy & Security** and click **Open Anyway**.
+- **Windows:** run the installer. If SmartScreen appears, click **More info → Run anyway**. Spinarr installs for your user only, with no admin prompt.
+- **Linux (.deb):** `sudo apt install ./Spinarr-*.deb`. This also installs bubblewrap, which sandboxes the engine.
+- **Linux (AppImage):** `chmod +x Spinarr-*.AppImage`, then run it. Install `bubblewrap` from your package manager so the engine runs sandboxed.
+
+### Encrypted DVDs (libdvdcss)
+
+Most store-bought DVDs are encrypted with CSS. Spinarr doesn't ship the library that reads them, so install it once:
+
+| System | Command |
+|---|---|
+| macOS | `brew install libdvdcss` |
+| Ubuntu, Debian, Mint | `sudo apt install libdvd-pkg && sudo dpkg-reconfigure libdvd-pkg` |
+| Fedora | `sudo dnf install libdvdcss` (from RPM Fusion) |
+| Arch | `sudo pacman -S libdvdcss` |
+| Windows | Download the 64-bit [`libdvdcss-2.dll`](https://download.videolan.org/pub/libdvdcss/1.2.11/win64/) from VideoLAN, then choose it in **Settings → System** |
+
+**Settings → System** shows whether it was found, with the right command for your system. Unencrypted discs, disc images and folders work without it.
 
 ## Features
 
@@ -32,6 +65,8 @@ Spinarr copies titles **losslessly**. You get the original MPEG-2 video, every a
 
 ## Keyboard
 
+On Windows and Linux, use Ctrl where this table says ⌘.
+
 | Keys | Action |
 | --- | --- |
 | ⌘O | Open an image or folder |
@@ -46,10 +81,14 @@ Spinarr copies titles **losslessly**. You get the original MPEG-2 video, every a
 
 A DVD is untrusted input parsed by C code, so Spinarr treats it that way:
 
-- **Sandboxed engine.** The scanner and ffmpeg run under a macOS sandbox:
-  - no network, no starting other programs
-  - no access to your files except the source
-  - writes only to your output folder
+- **Sandboxed engine.** The scanner and ffmpeg run with no network, no access to your files except the disc, and write access only to your output folder.
+
+  | System | Sandbox |
+  |---|---|
+  | macOS | Built-in sandbox profile, which also blocks starting other programs |
+  | Linux | [bubblewrap](https://github.com/containers/bubblewrap): fresh namespaces and read-only system files. The `.deb` installs it; for the AppImage, install it yourself. |
+  | Windows | None yet. **Settings → System** says so. The engine still uses the patched, fuzzed parsers below. |
+
 - **Patched, fuzzed parsers.** libdvdread is built from verified source with memory-safety fixes found by fuzzing. Those fixes are being sent upstream.
 - **Locked-down UI.** No Node.js in the UI, a strict CSP, and every request to the backend validated.
 
@@ -65,14 +104,24 @@ See [SECURITY.md](SECURITY.md) and the full [security testing report](docs/SECUR
 | `libdvdcss` | Loaded at runtime from **your** install to read CSS-encrypted discs. Spinarr doesn't ship it. |
 | `app/` | Electron shell: hardened main process, a preload bridge, and a plain HTML/CSS/JS UI |
 
-## Getting started
+## Build from source
+
+You only need this to develop Spinarr. Everyone else should use the [installers](#install).
 
 ```sh
-brew install meson ninja nasm pkg-config libdvdcss
+# 1. Build tools
+#    macOS:   xcode-select --install && brew install meson ninja nasm pkg-config libdvdcss
+#    Ubuntu:  sudo apt install build-essential meson ninja-build nasm pkg-config curl patch xz-utils bubblewrap
+#    Windows: install MSYS2, then in its MINGW64 shell:
+#             pacman -S make patch tar xz curl mingw-w64-x86_64-{gcc,meson,ninja,nasm,pkgconf}
+# 2. Engine and app
 npm install
 npm run engine      # downloads verified sources, applies patches, builds engine/bin (~5 min)
 npm start
+npm run dist        # optional: build an installer for this system into dist/
 ```
+
+On Windows, run `npm run engine` from the MSYS2 MINGW64 shell (`CC=gcc sh engine/build.sh`) and everything else from a normal terminal.
 
 ## Testing
 
@@ -80,15 +129,18 @@ npm start
 brew install ffmpeg dvdauthor cmake   # test-media generators (tsMuxeR is built from source) and independent oracle
 npm run fixtures                # builds a set of test DVDs (NTSC/PAL, 4:3/16:9, 5.1, subtitles, multi-titleset, broken, hostile)
 npm test                        # unit → security corpus → engine → end-to-end
+npm run test:linux              # the same suite on Linux, in Docker (engine sandboxed by bubblewrap)
 ```
+
+CI runs the full suite on macOS and Linux. On Windows it builds the engine, runs the unit tests, smoke-tests the engine and packages the app.
 
 Every feature maps to a user story with acceptance criteria: [docs/USER_STORIES.md](docs/USER_STORIES.md). Real-drive results: [docs/HARDWARE_TESTING.md](docs/HARDWARE_TESTING.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Roadmap
 
-- Signed and notarized `.dmg` releases (bundled engine, Electron fuses, hardened runtime)
-- More real-hardware coverage (multi-angle, seamless branching, damaged discs)
-- Windows and Linux
+- Code-signed releases (the release pipeline is ready and only needs certificates; see [docs/RELEASING.md](docs/RELEASING.md))
+- An engine sandbox on Windows (AppContainer)
+- More real-hardware coverage (multi-angle, seamless branching, damaged discs, Windows and Linux drives)
 - Blu-ray: real-drive testing, multi-clip and multi-angle playlists, 3D/MVC (UHD stays out of scope)
 
 ## Legal
@@ -97,4 +149,4 @@ Spinarr is for making personal backups of discs you own. Getting around copy pro
 
 ## License
 
-GPL-3.0-or-later. Spinarr links GPL components of ffmpeg and libdvdread.
+GPL-3.0-or-later. Spinarr links GPL components of ffmpeg and libdvdread. The UI bundles the [Inter](https://rsms.me/inter/) typeface (SIL Open Font License, `app/renderer/fonts/Inter-LICENSE.txt`).

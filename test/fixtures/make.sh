@@ -1,11 +1,11 @@
 #!/bin/sh
 # Builds the DVD-Video fixture matrix used by the engine and e2e tests -> test/fixtures/out/
-# Needs: brew install ffmpeg dvdauthor   (full ffmpeg, for encoding test content)
+# Needs: ffmpeg and dvdauthor (brew install ffmpeg dvdauthor / apt install ffmpeg dvdauthor genisoimage fonts-dejavu-core)
 set -e
 cd "$(dirname "$0")"
+. ./common.sh
 rm -rf out; mkdir -p out/src; cd out; OUT=.
 FF="ffmpeg -hide_banner -loglevel error -y"
-FONT=/System/Library/Fonts/Supplemental/Arial.ttf
 
 # clip <name> <seconds> <ntsc|pal> <aspect> <audio-spec> [subs]
 clip() {
@@ -48,7 +48,7 @@ author() { # author <dir> <xml>
   rm -rf "$1"; VIDEO_FORMAT=$2 dvdauthor -o "$1" -x "$3" >/dev/null 2>&1
 }
 iso() { # iso <dir> <file> <label>
-  hdiutil makehybrid -quiet -udf -udf-volume-name "$3" -o "$2" "$1"
+  mkiso "$3" "$2" "$1"
 }
 
 # --- ntsc_basic: 2 titles, chapters, EN/ES stereo AC3 -------------------------

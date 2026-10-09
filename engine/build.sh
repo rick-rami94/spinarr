@@ -7,13 +7,26 @@
 # BD-J (Java), fonts and XML disabled. Decryption libraries are NOT bundled: libdvdcss,
 # libaacs and libbdplus are loaded at runtime only if the user installed them.
 #
-# Needs: brew install meson ninja nasm pkg-config
+# Needs a C toolchain plus meson, ninja, nasm, pkg-config, curl, patch and xz:
+#   macOS:   xcode-select --install && brew install meson ninja nasm pkg-config
+#   Linux:   sudo apt install build-essential meson ninja-build nasm pkg-config curl patch xz-utils
+#   Windows: MSYS2 MINGW64 (or CLANGARM64) shell:
+#            pacman -S --needed make patch tar xz curl mingw-w64-x86_64-{gcc,meson,ninja,nasm,pkgconf}
 set -eu
 cd "$(dirname "$0")"
 ROOT=$(pwd)
 DEPS="$ROOT/deps"
 PREFIX="$DEPS/prefix"
-JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc)
+JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+CC=${CC:-cc}
+case "$(uname -s)" in
+  Darwin) OS=mac; EXE= ;;
+  MINGW*|MSYS*|CYGWIN*) OS=win; EXE=.exe ;;
+  *) OS=linux; EXE= ;;
+esac
+# Windows: link everything statically, so the .exe files need no MinGW runtime DLLs.
+STATIC_LD=; if [ $OS = win ]; then STATIC_LD=-static; fi
+sha256() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 mkdir -p bin "$DEPS"
 
 # name  version  url  sha256
@@ -32,10 +45,10 @@ fetch() {
   line=$(echo "$SOURCES" | awk -v n="$1" '$1 == n')
   ver=$(echo "$line" | awk '{print $2}'); url=$(echo "$line" | awk '{print $3}'); sha=$(echo "$line" | awk '{print $4}')
   dir="$DEPS/$1-$ver"; tarball="$DEPS/$1-$ver.tar.xz"
-  stamp="$dir/.spinarr-$(cat "$ROOT"/patches/"$1"-*.patch 2>/dev/null | shasum -a 256 | cut -c1-16)"
+  stamp="$dir/.spinarr-$(cat "$ROOT"/patches/"$1"-*.patch 2>/dev/null | sha256 | cut -c1-16)"
   if [ -f "$stamp" ]; then echo "$dir"; return; fi
   [ -f "$tarball" ] || curl -fsSL --proto '=https' --tlsv1.2 "$url" -o "$tarball"
-  echo "$sha  $tarball" | shasum -a 256 -c - >&2 || { echo "checksum mismatch: $tarball" >&2; rm -f "$tarball"; exit 1; }
+  echo "$sha  $tarball" | sha256 -c - >&2 || { echo "checksum mismatch: $tarball" >&2; rm -f "$tarball"; exit 1; }
   rm -rf "$dir"
   tar xJf "$tarball" -C "$DEPS"
   for p in "$ROOT"/patches/"$1"-*.patch; do
@@ -48,6 +61,9 @@ fetch() {
 }
 
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+
+# `build.sh scanners` rebuilds only dvdinfo/bdinfo against the already-built libraries.
+if [ "${1:-}" != scanners ]; then
 
 # --- libdvdread / libdvdnav (static, asserts kept on: they stop libdvdnav on bad cell data) ---
 for lib in libdvdread libdvdnav; do
@@ -74,6 +90,7 @@ cd "$src"
   --pkg-config-flags=--static \
   --disable-everything --disable-doc --disable-ffplay --disable-network \
   --disable-autodetect --disable-shared --enable-static \
+  $( [ $OS = win ] && echo --enable-w32threads --extra-ldflags=-static ) \
   --enable-gpl --enable-version3 --enable-libdvdnav --enable-libdvdread --enable-libbluray \
   --enable-demuxer=dvdvideo,mpegps,mpegts,ffmetadata,matroska,mpegvideo,h264,hevc,vc1,ac3,eac3,dts,truehd,mlp,mp3,pcm_s16be \
   --enable-muxer=matroska,null --enable-protocol=file,pipe,bluray --enable-encoder=flac \
@@ -81,16 +98,28 @@ cd "$src"
   --enable-decoder=mpeg2video,mpeg1video,h264,hevc,vc1,ac3,eac3,dca,truehd,mlp,mp2,mp3,pcm_dvd,pcm_bluray,dvdsub,pgssub \
   --enable-bsf=dca_core,mpeg2_metadata,extract_extradata,pgs_frame_merge,null --enable-filter=null,anull,aformat,aresample >/dev/null
 make -j"$JOBS" >/dev/null
-cp ffmpeg ffprobe "$ROOT/bin/"
+cp "ffmpeg$EXE" "ffprobe$EXE" "$ROOT/bin/"
 cd "$ROOT"
 
-# --- dvdinfo ---
-# shellcheck disable=SC2046
-cc -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -D_FORTIFY_SOURCE=2 \
-  -o bin/dvdinfo dvdinfo.c $(pkg-config --static --cflags --libs dvdread)
-# shellcheck disable=SC2046
-cc -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -D_FORTIFY_SOURCE=2 \
-  -o bin/bdinfo bdinfo.c $(pkg-config --static --cflags --libs libbluray)
+fi
+
+# --- dvdinfo / bdinfo ---
+WINLIBS=; if [ $OS = win ]; then WINLIBS=-lshell32; fi
+# shellcheck disable=SC2046,SC2086
+$CC -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -D_FORTIFY_SOURCE=2 $STATIC_LD \
+  -o "bin/dvdinfo$EXE" dvdinfo.c $(pkg-config --static --cflags --libs dvdread) $WINLIBS
+# shellcheck disable=SC2046,SC2086
+$CC -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -D_FORTIFY_SOURCE=2 $STATIC_LD \
+  -o "bin/bdinfo$EXE" bdinfo.c $(pkg-config --static --cflags --libs libbluray) $WINLIBS
 
 echo "engine built -> $ROOT/bin"
-for b in ffmpeg ffprobe dvdinfo bdinfo; do otool -L "bin/$b" | tail -n +2 | grep -v '/usr/lib/\|/System/' && echo "WARNING: bin/$b links a non-system library" >&2 || true; done
+# Each binary may only link the OS's own libraries: everything else is static.
+for b in ffmpeg ffprobe dvdinfo bdinfo; do
+  f="bin/$b$EXE"
+  case $OS in
+    mac) bad=$(otool -L "$f" | tail -n +2 | grep -v '/usr/lib/\|/System/' || true) ;;
+    linux) bad=$(ldd "$f" 2>/dev/null | grep -v 'linux-vdso\|ld-linux\|libc\.so\|libm\.so\|libdl\.so\|libpthread\.so\|librt\.so\|statically linked' || true) ;;
+    win) bad=$(objdump -p "$f" | sed -n 's/^\s*DLL Name: //p' | grep -iv '^\(kernel32\|user32\|advapi32\|shell32\|ole32\|ws2_32\|bcrypt\|msvcrt\|ucrtbase\|api-ms-win-.*\|shlwapi\|secur32\|gdi32\|psapi\)\.dll' || true) ;;
+  esac
+  [ -z "$bad" ] || echo "WARNING: $f links a non-system library: $bad" >&2
+done

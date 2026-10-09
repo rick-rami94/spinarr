@@ -21,6 +21,11 @@ test('prettyName turns volume labels into titles', () => {
 test('safeFile produces a single safe path component', () => {
   assert.equal(lib.safeFile('Movie: The "Sequel"?'), 'Movie- The -Sequel-');
   assert.equal(lib.safeFile('../../etc/passwd'), 'etc-passwd');
+  // Windows rules, applied everywhere so files can move between systems
+  assert.equal(lib.safeFile('CON'), 'CON_');
+  assert.equal(lib.safeFile('lpt1.mkv'), 'lpt1.mkv_');
+  assert.equal(lib.safeFile('Console'), 'Console');
+  assert.equal(lib.safeFile('Movie. . '), 'Movie');
   assert.equal(lib.safeFile('..'), 'Untitled');
   assert.equal(lib.safeFile('.hidden'), 'hidden');
   assert.equal(lib.safeFile('-rf'), 'rf');

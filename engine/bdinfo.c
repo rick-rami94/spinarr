@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "argv_utf8.h"
 #include <libbluray/bluray.h>
 #include <libbluray/log_control.h>
 
@@ -91,13 +92,21 @@ static int audio_channels(uint8_t f)
     }
 }
 
+struct order { uint32_t idx, playlist; };
+
+static int by_playlist(const void *a, const void *b)
+{
+    uint32_t x = ((const struct order *)a)->playlist, y = ((const struct order *)b)->playlist;
+    return x < y ? -1 : x > y;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) { fprintf(stderr, "usage: bdinfo <device|iso|dir>\n"); return 2; }
 
     bd_set_debug_mask(0); /* keep libbluray's logging off stdout/stderr noise */
 
-    BLURAY *bd = bd_open(argv[1], NULL);
+    BLURAY *bd = bd_open(arg_utf8(argc, argv, 1), NULL);
     if (!bd) { printf("{\"error\":\"Could not open disc\"}\n"); return 1; }
 
     const BLURAY_DISC_INFO *di = bd_get_disc_info(bd);
@@ -121,8 +130,20 @@ int main(int argc, char **argv)
     if (n > MAX_TITLES) n = MAX_TITLES;
     int emitted = 0;
 
+    /* libbluray lists playlists in directory order: sorted on macOS, arbitrary on Linux
+     * filesystems. Emit them by playlist number so title numbers match on every OS. */
+    static struct order ord[MAX_TITLES];
+    uint32_t m = 0;
     for (uint32_t i = 0; i < n; i++) {
         BLURAY_TITLE_INFO *ti = bd_get_title_info(bd, i, 0);
+        if (!ti) continue;
+        ord[m].idx = i; ord[m].playlist = ti->playlist; m++;
+        bd_free_title_info(ti);
+    }
+    qsort(ord, m, sizeof ord[0], by_playlist);
+
+    for (uint32_t i = 0; i < m; i++) {
+        BLURAY_TITLE_INFO *ti = bd_get_title_info(bd, ord[i].idx, 0);
         if (!ti) continue;
 
         uint64_t bytes = 0;

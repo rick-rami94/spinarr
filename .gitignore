@@ -13,3 +13,4 @@ test/security/findings/
 test/tools/tsMuxer-*
 test/security/work-bd/
 test/security/findings-bd/
+dist/
