@@ -39,8 +39,8 @@ Object.assign(module.exports, {
       h.assert.equal(r.ipc, 'undefined');
       h.assert.equal(r.href, 'app://spinarr/index.html');
       h.assert.ok(r.frozen, 'bridge object is frozen');
-      h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'on',
-        'pathForFile', 'pickOutput', 'pickSource', 'probe', 'reveal', 'rip', 'scan', 'setSettings'].sort());
+      h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'on',
+        'openDvdcssPage', 'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
       h.assert.equal(await h.js(`window.open('https://example.com') === null`), true, 'window.open is denied');
       for (const target of ['https://example.com', 'file:///etc/hosts', 'app://spinarr/../../etc/hosts']) {
         await h.js(`location.href = ${JSON.stringify(target)}; 1`).catch(() => {});
@@ -73,6 +73,8 @@ Object.assign(module.exports, {
         `spinarr.rip([{ source: ${JSON.stringify(src)}, title: 1, streams: [9999] }])`,
         `spinarr.rip(Array(200).fill({ source: ${JSON.stringify(src)}, title: 1 }))`,
         `spinarr.eject('/')`, `spinarr.eject('/Volumes/Macintosh HD')`,
+        `spinarr.pickSource('evil')`, `spinarr.pickSource({})`,
+        `spinarr.installDvdcss()`, // macOS: there is nothing to install, so it refuses before any dialog
       ];
       for (const expr of rejects) {
         const r = await call(h, expr);
@@ -304,6 +306,7 @@ Object.assign(module.exports, {
   },
 
   us_low_disk_space: {
+    platforms: ['darwin'], // builds and mounts disk images with hdiutil
     stories: ['US-15'],
     title: 'Rip button is disabled with a clear message when the output drive is too small',
     setup(env) {
@@ -323,6 +326,7 @@ Object.assign(module.exports, {
   },
 
   us_mounted_image_and_eject: {
+    platforms: ['darwin'], // builds and mounts disk images with hdiutil
     stories: ['US-01', 'US-18', 'SEC-10'],
     title: 'A mounted image appears in Sources but is not auto-scanned; click scans; eject removes it',
     after() { detach('/Volumes/NTSC_BASIC'); },
@@ -344,6 +348,7 @@ Object.assign(module.exports, {
   },
 
   us_disc_removed_midrip: {
+    platforms: ['darwin'], // builds and mounts disk images with hdiutil
     stories: ['US-21'],
     title: 'Pulling the disc mid-rip fails the job cleanly with no partial file',
     env: { SPINARR_READRATE: '4' },

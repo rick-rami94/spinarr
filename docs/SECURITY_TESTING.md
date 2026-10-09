@@ -51,7 +51,7 @@ The realistic attacker is someone who gets a user to open a crafted ISO, for exa
 
 ### Defense in depth that doesn't depend on the parser fixes
 
-Even if a new libdvdread bug is found, the engine runs under `sandbox-exec`:
+Even if a new libdvdread bug is found, the engine runs sandboxed: `sandbox-exec` on macOS, bubblewrap on Linux. `test/security/sandbox.test.js` checks the first two rows and the last row against the real engine on both systems in CI. Results on macOS:
 
 | From inside the engine sandbox | Result |
 |---|---|
@@ -60,6 +60,10 @@ Even if a new libdvdread bug is found, the engine runs under `sandbox-exec`:
 | `execve /bin/sh` | `Operation not permitted` |
 | Network | denied (`deny network*`; ffmpeg is also built without network protocols) |
 | Rip to the output folder | allowed |
+
+On Linux, bubblewrap gives the engine new user, PID, network, IPC, UTS and cgroup namespaces with all capabilities dropped. It sees `/usr` and the source read-only, and only the output folder and decryption caches are writable. Your home folder isn't mounted at all, so reading `~/.bashrc` gives `No such file`. Unlike the macOS profile, it doesn't block `execve` of system binaries. A compromised engine could start `/usr/bin/sh`, but that shell has the same empty view of your files and no network.
+
+**Windows has no engine sandbox yet.** The app says so in Settings → System, and the README says so too. The parser patches and fuzzing above apply on every OS.
 
 ## 4. Fuzzing results
 
@@ -124,6 +128,8 @@ The 37 crashing inputs (up to 3 per site) are kept in `test/fixtures/malicious-b
 - **Upstream:** send `libdvdread-0001`, `libbluray-0001/0002` and `ffmpeg-0001…0003` to VideoLAN and FFmpeg.
 - **`sandbox-exec` is deprecated** by Apple, though it still works on macOS 15. Revisit it if it's removed, for example by moving the engine into an XPC service with App Sandbox entitlements.
 - **libdvdcss is loaded from the user's Homebrew install.** On Intel Macs `/usr/local/lib` is user-writable. Packaged builds should use hardened runtime with library validation off only for that one dlopen, or ask the user to locate libdvdcss.
-- **Packaging:** set Electron fuses (RunAsNode off, NODE_OPTIONS off, inspect off, ASAR integrity on), and sign and notarize.
+- **Packaging:** done. Electron fuses are set in every build (RunAsNode, NODE_OPTIONS and inspect off; ASAR integrity on). Signing and notarization are wired up in the release workflow and wait on certificates (docs/RELEASING.md).
+- **Windows engine sandbox:** run the engine in an AppContainer or a restricted-token job object with no network capability.
+- **Linux:** add a seccomp filter to the bubblewrap profile that blocks `execve` after start-up, to match macOS.
 - **More fuzzing:** a libFuzzer harness in CI, and fuzzing ffmpeg's `dvdvideo` + `mpegps` path with VOB mutations, not just IFO.
 - **Real-hardware testing** of the physical-disc path (`/dev/rdisk*` access inside the sandbox) is pending a drive.

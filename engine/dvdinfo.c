@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "argv_utf8.h"
 #include <dvdread/dvd_reader.h>
 #include <dvdread/ifo_types.h>
 #include <dvdread/ifo_read.h>
@@ -75,7 +76,7 @@ int main(int argc, char **argv)
 {
     if (argc < 2) { fprintf(stderr, "usage: dvdinfo <device|iso|dir>\n"); return 2; }
 
-    dvd_reader_t *dvd = DVDOpen(argv[1]);
+    dvd_reader_t *dvd = DVDOpen(arg_utf8(argc, argv, 1));
     if (!dvd) { printf("{\"error\":\"Could not open disc\"}\n"); return 1; }
 
     ifo_handle_t *vmg = ifoOpen(dvd, 0);

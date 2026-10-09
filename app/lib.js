@@ -25,8 +25,10 @@ function safeFile(s) {
     .replace(/^[.\s-]+/, '') // no hidden files, no "..", no leading dash
     .trim()
     .slice(0, 180)
-    .trim();
-  return clean || 'Untitled';
+    .replace(/[.\s]+$/, ''); // Windows drops trailing dots and spaces
+  if (!clean) return 'Untitled';
+  // Names Windows reserves for devices, with or without an extension.
+  return /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(clean) ? `${clean}_` : clean;
 }
 
 function uniquePath(p, exists = fs.existsSync) {
@@ -114,7 +116,7 @@ function ripVerdict({ code, signal = null, stderr = '', videoSeconds = null, dur
   if (signal) return { ok: false, error: 'The disc data is damaged or not supported, so the engine stopped safely.' };
   const read = /Error reading from DVD|Unable to read next block|Input\/output error/i.test(stderr);
   if (/css|dvdcss|decrypt|aacs/i.test(stderr) && code !== 0) {
-    return { ok: false, error: 'Could not decrypt this disc. Make sure the decryption library for it is installed.' };
+    return { ok: false, error: 'Could not decrypt this disc. Install the decryption library for it (Settings → System shows how).' };
   }
   if (read) return { ok: false, error: 'Could not read part of the disc. It may be scratched or dirty: clean it and try again.' };
   if (code !== 0) return { ok: false, error: stderr.trim().split('\n').slice(-2).join(' ') || `ffmpeg exited with code ${code}` };
@@ -182,7 +184,9 @@ const isInt = (n, lo, hi) => Number.isInteger(n) && n >= lo && n <= hi;
 
 function validateSource(p, { stat = fs.statSync } = {}) {
   if (typeof p !== 'string' || !path.isAbsolute(p) || p.length > 4096 || /[\0\n\r]/.test(p)) throw new Error('Invalid source');
-  let norm = path.normalize(p).replace(/\/+$/, '') || '/';
+  let norm = path.normalize(p);
+  const root = path.parse(norm).root;
+  if (norm.length > root.length) norm = norm.replace(/[\\/]+$/, ''); // keep "/" and "D:\\" as they are
   if (['VIDEO_TS', 'BDMV'].includes(path.basename(norm).toUpperCase())) norm = path.dirname(norm);
   let st;
   try { st = stat(norm); } catch { throw new Error('Source not found'); }

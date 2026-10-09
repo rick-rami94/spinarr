@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Used only when the app is signed with a Developer ID (hardened runtime). -->
+<plist version="1.0">
+<dict>
+  <!-- Electron's V8 needs JIT. -->
+  <key>com.apple.security.cs.allow-jit</key><true/>
+  <!-- The engine loads the user's own Homebrew libdvdcss/libaacs, which aren't signed by us. -->
+  <key>com.apple.security.cs.disable-library-validation</key><true/>
+</dict>
+</plist>

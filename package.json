@@ -2,28 +2,116 @@
   "name": "spinarr",
   "productName": "Spinarr",
   "version": "0.1.0",
-  "description": "Open-source DVD to MKV ripper with a modern UI",
+  "description": "Open-source DVD and Blu-ray to MKV ripper with a modern UI",
   "main": "app/main.js",
   "license": "GPL-3.0-or-later",
   "scripts": {
     "start": "electron .",
     "engine": "sh engine/build.sh",
     "fixtures": "sh test/fixtures/make.sh && sh test/fixtures/make-bluray.sh",
-    "test:unit": "node --test 'test/unit/*.test.js'",
-    "test:engine": "node --test 'test/engine/*.test.js'",
-    "test:security": "node --test 'test/security/*.test.js'",
+    "test:unit": "node --test \"test/unit/*.test.js\"",
+    "test:engine": "node --test \"test/engine/*.test.js\"",
+    "test:security": "node --test \"test/security/*.test.js\"",
     "test:e2e": "node test/e2e/run.js",
     "test": "npm run test:unit && npm run test:security && npm run test:engine && npm run test:e2e",
     "fixtures:bluray": "sh test/fixtures/make-bluray.sh",
-    "screenshots": "node test/e2e/run.js docs_screenshots"
+    "screenshots": "node test/e2e/run.js docs_screenshots",
+    "icon": "electron build/make-icon.js",
+    "dist": "electron-builder --publish never",
+    "test:linux": "sh test/linux/run.sh"
   },
   "devDependencies": {
-    "electron": "^44.7.0"
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
   },
   "engines": {
     "node": ">=20"
   },
-  "os": [
-    "darwin"
-  ]
+  "homepage": "https://github.com/rick-rami94/spinarr",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rick-rami94/spinarr.git"
+  },
+  "author": "Rick Ramirez",
+  "build": {
+    "appId": "io.github.rick-rami94.spinarr",
+    "productName": "Spinarr",
+    "copyright": "Copyright © 2026 Rick Ramirez. GPL-3.0-or-later.",
+    "artifactName": "Spinarr-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "app/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "extraResources": [
+      {
+        "from": "engine/bin",
+        "to": "engine",
+        "filter": [
+          "ffmpeg",
+          "ffprobe",
+          "dvdinfo",
+          "bdinfo",
+          "*.exe"
+        ]
+      }
+    ],
+    "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false,
+      "resetAdHocDarwinSignature": true
+    },
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        "dmg"
+      ],
+      "hardenedRuntime": true,
+      "minimumSystemVersion": "12.0",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "dmg": {
+      "title": "Spinarr ${version}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "synopsis": "Rip DVDs and Blu-rays to MKV, losslessly",
+      "maintainer": "Rick Ramirez <rickramirez94@gmail.com>"
+    },
+    "deb": {
+      "depends": [
+        "bubblewrap",
+        "libgtk-3-0",
+        "libnss3",
+        "libxss1",
+        "libasound2 | libasound2t64",
+        "libgbm1"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    }
+  }
 }

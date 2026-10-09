@@ -1,15 +1,16 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, session, protocol, net, nativeTheme } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell, session, protocol, net, nativeTheme } = require('electron');
 const { spawn, execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { pathToFileURL } = require('url');
 const lib = require('./lib');
+const { createPlatform } = require('./platform');
 
 const ENGINE = app.isPackaged
   ? path.join(process.resourcesPath, 'engine')
   : process.env.SPINARR_ENGINE_DIR || path.join(__dirname, '..', 'engine', 'bin');
-const bin = (name) => path.join(ENGINE, name);
+const bin = (name) => path.join(ENGINE, platform.exe(name));
 // The UI is served from its own origin (app://spinarr/) instead of file://, so CSP 'self'
 // means "Spinarr's renderer files" rather than "any file on disk" (e.g. on a hostile disc).
 const RENDERER_DIR = path.join(__dirname, 'renderer');
@@ -19,7 +20,7 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: t
 function serveRenderer(request) {
   const url = new URL(request.url);
   const file = path.normalize(path.join(RENDERER_DIR, decodeURIComponent(url.pathname)));
-  if (url.host !== 'spinarr' || !file.startsWith(RENDERER_DIR + path.sep) || !/\.(html|js|css|svg|png)$/.test(file)) {
+  if (url.host !== 'spinarr' || !file.startsWith(RENDERER_DIR + path.sep) || !/\.(html|js|css|svg|png|woff2)$/.test(file)) {
     return new Response('Not found', { status: 404 });
   }
   return net.fetch(pathToFileURL(file).href);
@@ -28,8 +29,13 @@ function serveRenderer(request) {
 // ---------- settings ----------
 if (process.env.SPINARR_USER_DATA && !app.isPackaged) app.setPath('userData', process.env.SPINARR_USER_DATA);
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
+// Platform specifics (drives, sandbox, decryption libraries). Test hooks are ignored when packaged.
+const platform = createPlatform({
+  run, dataDir: app.getPath('userData'),
+  env: app.isPackaged ? { ...process.env, SPINARR_VOLUMES: '' } : process.env,
+});
 const DEFAULTS = {
-  outputDir: path.join(os.homedir(), 'Movies', 'Spinarr'),
+  outputDir: path.join((() => { try { return app.getPath('videos'); } catch { return path.join(os.homedir(), 'Videos'); } })(), 'Spinarr'),
   minMinutes: 2,
   accurateChapters: false, // a second full read of the title: doubles rip time on a real drive
 };
@@ -48,11 +54,19 @@ let settings = loadSettings();
 
 // ---------- window ----------
 let win;
+const titleBarOverlay = () => (nativeTheme.shouldUseDarkColors
+  ? { color: '#0c0c0e', symbolColor: '#f3f3f5', height: 52 }
+  : { color: '#f6f6f4', symbolColor: '#16161a', height: 52 });
+nativeTheme.on('updated', () => { if (!platform.isMac && win && !win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay()); });
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1240, height: 820, minWidth: 900, minHeight: 600,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 18, y: 18 },
+    // macOS: traffic lights inset into the sidebar. Windows/Linux: native caption buttons
+    // drawn over the top-right corner, so the app keeps its own full-height layout.
+    ...(platform.isMac
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 } }
+      : { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(), icon: path.join(__dirname, 'icon.png') }),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0c0e' : '#f6f6f4',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -77,79 +91,53 @@ function createWindow() {
 const send = (ch, data) => win && !win.isDestroyed() && win.webContents.send(ch, data);
 
 // ---------- helpers ----------
+// Child processes lead their own process group (and session, so they have no controlling
+// terminal). Stopping one signals the whole group: a sandbox wrapper such as bubblewrap can
+// lose a SIGTERM that arrives while it's still setting up, and its child must not outlive it.
+// (Measured: 32 kills at 0-150 ms after start, no stray engine and no leftover file.)
+const SPAWN_OPTS = process.platform === 'win32' ? { windowsHide: true } : { detached: true };
+function killTree(child, signal) {
+  if (!child?.pid) return;
+  if (process.platform === 'win32') { try { child.kill(); } catch {} return; }
+  try { process.kill(-child.pid, signal); } catch { try { child.kill(signal); } catch {} }
+}
+// A cancelled rip's partial file is deleted anyway, so there's nothing to stop gracefully:
+// SIGKILL can't be blocked or lost, and reaches the whole group, sandbox included.
+const stopProcess = (child) => killTree(child, 'SIGKILL');
+
 function run(cmd, args, { timeout = 120000, env } = {}) {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { timeout, env, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err && (!stdout || err.signal)) {
-        const msg = err.killed && !err.signal ? 'Timed out reading the disc'
+    let timedOut = false;
+    const child = execFile(cmd, args, { env, maxBuffer: 32 * 1024 * 1024, ...SPAWN_OPTS }, (err, stdout, stderr) => {
+      clearTimeout(timer);
+      if (err && (!stdout || err.signal || timedOut)) {
+        const msg = timedOut ? 'Timed out reading the disc'
           : err.signal ? 'The disc data is damaged or not supported, so the engine stopped safely.'
           : (stderr || err.message).trim().split('\n').pop();
         return reject(new Error(msg));
       }
       resolve(stdout);
     });
+    const timer = setTimeout(() => { timedOut = true; killTree(child, 'SIGKILL'); }, timeout);
   });
 }
 
-// ---------- engine processes (sandboxed) ----------
-const CSS_CACHE = path.join(os.homedir(), 'Library', 'Caches', 'dvdcss');
+// ---------- engine processes (sandboxed where the OS allows) ----------
 const NO_SANDBOX = process.env.SPINARR_NO_SANDBOX === '1' && !app.isPackaged;
-// Engines get a minimal environment: nothing inherited (no DYLD_*, no proxies, no secrets).
-const ENGINE_ENV = { HOME: os.homedir(), PATH: '/usr/bin:/bin', LANG: 'en_US.UTF-8', DVDCSS_CACHE: CSS_CACHE };
-
-// Where the user's own libaacs/libbdplus look for keys (KEYDB.cfg) and keep caches on macOS.
-const LIB = path.join(os.homedir(), 'Library');
-const KEY_DIRS = {
-  aacsConf: path.join(LIB, 'Preferences', 'aacs'), bdplusConf: path.join(LIB, 'Preferences', 'bdplus'),
-  aacsCache: path.join(LIB, 'Caches', 'aacs'), bdplusCache: path.join(LIB, 'Caches', 'bdplus'),
-};
+const ENGINE_ENV = platform.engineEnv;
 
 function engine(name, args, { source, outDir }) {
   const binPath = bin(name);
   if (NO_SANDBOX) return [binPath, args];
-  fs.mkdirSync(CSS_CACHE, { recursive: true });
-  const real = (p) => fs.realpathSync(p);
-  const realOrSelf = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
-  return lib.sandboxed(real(binPath), args, {
-    engineDir: real(ENGINE),
-    source: real(source),
-    outDir: real(outDir || CSS_CACHE),
-    cssCache: real(CSS_CACHE),
-    keyDirs: Object.fromEntries(Object.entries(KEY_DIRS).map(([k, v]) => [k, realOrSelf(v)])),
-  });
+  return platform.wrap(binPath, args, { engineDir: ENGINE, source, outDir });
 }
 const runEngine = (name, args, ctx, opts = {}) => run(...engine(name, args, ctx), { ...opts, env: ENGINE_ENV });
 
 // ---------- drives ----------
-async function listDrives() {
-  const out = [];
-  let vols = [];
-  try { vols = fs.readdirSync('/Volumes'); } catch {}
-  // Dev/test only: limit detection to named volumes so tests ignore real discs in the drive.
-  const only = !app.isPackaged && process.env.SPINARR_VOLUMES ? process.env.SPINARR_VOLUMES.split(',') : null;
-  for (const v of vols) {
-    if (only && !only.includes(v)) continue;
-    const p = path.join('/Volumes', v);
-    const media = lib.sourceKind(p);
-    if (!media) continue;
-    let kind = 'other';
-    try { kind = lib.volumeKind(await run('diskutil', ['info', '-plist', p], { timeout: 10000 })); } catch {}
-    out.push({ name: v, path: p, kind, media });
-  }
-  let hasDrive = false;
-  try { hasDrive = /Vendor/.test(await run('drutil', ['status'], { timeout: 5000 })); } catch {}
-  return { discs: out, hasDrive };
-}
-
-let volWatch;
+const listDrives = () => platform.listDrives();
+let stopWatching;
 function watchVolumes() {
-  try {
-    let t;
-    volWatch = fs.watch('/Volumes', () => {
-      clearTimeout(t);
-      t = setTimeout(async () => send('drives-changed', await listDrives()), 800);
-    });
-  } catch {}
+  stopWatching = platform.watch(async () => send('drives-changed', await listDrives()));
 }
 
 // ---------- scanning ----------
@@ -333,7 +321,7 @@ function start(job, args, part, final) {
     // Dev/test only: throttle reads so tests can observe progress and cancel mid-rip.
     if (!app.isPackaged && +process.env.SPINARR_READRATE > 0) args.unshift('-readrate', String(+process.env.SPINARR_READRATE));
     proc = spawn(...engine('ffmpeg', args, { source: job.source, outDir: job.outputDir }),
-      { stdio: ['ignore', 'pipe', 'pipe'], env: ENGINE_ENV });
+      { stdio: ['ignore', 'pipe', 'pipe'], env: ENGINE_ENV, ...SPAWN_OPTS });
   } catch (e) {
     return finish(job, 'failed', e.message);
   }
@@ -389,7 +377,7 @@ function cancel(id) {
   const job = queue.find((j) => j.id === id);
   if (!job) return;
   if (job.state === 'queued') { job.state = 'cancelled'; broadcastQueue(); }
-  else if (job.state === 'ripping') { job.state = 'cancelled'; job.proc?.kill('SIGTERM'); broadcastQueue(); }
+  else if (job.state === 'ripping') { job.state = 'cancelled'; stopProcess(job.proc); broadcastQueue(); }
 }
 
 function clearFinished() {
@@ -424,19 +412,32 @@ handle('reveal', (id) => {
 });
 handle('eject', async (p) => {
   const { discs } = await listDrives();
-  if (!discs.some((d) => d.path === p)) throw new Error('Not a mounted disc');
-  try { await run('diskutil', ['eject', p], { timeout: 30000 }); }
-  catch { await run('drutil', ['eject'], { timeout: 30000 }); }
+  const drive = discs.find((d) => d.path === p);
+  if (!drive) throw new Error('Not a mounted disc');
+  await platform.eject(drive);
 });
-handle('pick-source', async () => {
+handle('system', () => platform.info());
+// Windows: let the user hand us libdvdcss-2.dll (we never download or ship it).
+handle('install-dvdcss', async () => {
+  if (!platform.isWin) throw new Error('Only needed on Windows');
+  const r = await dialog.showOpenDialog(win, { title: 'Choose libdvdcss-2.dll', properties: ['openFile'], filters: [{ name: 'DLL', extensions: ['dll'] }] });
+  if (r.canceled || !r.filePaths[0]) return platform.info();
+  platform.installDvdcss(r.filePaths[0]);
+  return platform.info();
+});
+handle('open-dvdcss-page', () => { const u = platform.dvdcss().url; if (u) shell.openExternal(u); });
+// kind: 'any' (macOS dialogs can pick a file or a folder), or 'file' / 'folder' elsewhere.
+handle('pick-source', async (kind = 'any') => {
+  if (!['any', 'file', 'folder'].includes(kind)) throw new Error('Invalid kind');
+  const props = kind === 'folder' ? ['openDirectory'] : kind === 'file' || !platform.isMac ? ['openFile'] : ['openFile', 'openDirectory'];
   const r = await dialog.showOpenDialog(win, {
-    title: 'Open DVD image or VIDEO_TS folder',
-    properties: ['openFile', 'openDirectory'],
-    filters: [{ name: 'DVD image', extensions: ['iso', 'img'] }],
+    title: kind === 'folder' ? 'Open a disc folder' : 'Open a disc image or folder',
+    properties: props,
+    ...(props.includes('openFile') ? { filters: [{ name: 'Disc image', extensions: ['iso', 'img'] }, { name: 'All files', extensions: ['*'] }] } : {}),
   });
   if (r.canceled || !r.filePaths[0]) return null;
   let p = r.filePaths[0];
-  if (path.basename(p).toUpperCase() === 'VIDEO_TS') p = path.dirname(p);
+  if (['VIDEO_TS', 'BDMV'].includes(path.basename(p).toUpperCase())) p = path.dirname(p);
   return p;
 });
 handle('pick-output', async () => {
@@ -460,6 +461,7 @@ app.whenReady().then(() => {
   // Deny every permission except desktop notifications.
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'notifications'));
   session.defaultSession.setPermissionCheckHandler((_wc, perm) => perm === 'notifications');
+  if (!platform.isMac) Menu.setApplicationMenu(null); // no menu bar under the custom title bar
   createWindow();
   watchVolumes();
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow());
@@ -471,11 +473,12 @@ function stopAll() {
   for (const j of queue) {
     if (!j.proc) continue;
     j.state = 'cancelled';
-    j.proc.kill('SIGTERM');
-    fs.rmSync(j.output + '.part', { force: true });
-    if (j.chaptersFile) fs.rmSync(j.chaptersFile, { force: true });
+    killTree(j.proc, 'SIGKILL'); // the app is exiting: no time for a graceful stop
+    // Windows may still hold the file for a moment after the kill.
+    try { fs.rmSync(j.output + '.part', { force: true }); } catch {}
+    try { if (j.chaptersFile) fs.rmSync(j.chaptersFile, { force: true }); } catch {}
   }
-  volWatch?.close();
+  stopWatching?.();
 }
 app.on('will-quit', stopAll);
 app.on('window-all-closed', () => app.quit());

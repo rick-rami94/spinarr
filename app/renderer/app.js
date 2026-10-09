@@ -37,12 +37,19 @@ const state = {
   showDups: false,
   queue: [],
   freeSpace: null,
+  system: null, // { platform, sandbox, dvdcss: { installed, command?, url?, canPick? }, bwrapHelp }
   fresh: false, // animate the title list in once, right after a scan
 };
 
+const OS = spinarr.platform;
+const IS_MAC = OS === 'darwin';
+// Shortcut labels in each platform's own notation: ⌘O on macOS, Ctrl+O elsewhere.
+const keys = (k) => (IS_MAC ? k : k.replace('⇧⌘', 'Ctrl+Shift+').replace('⌘', 'Ctrl+').replace('↩', 'Enter'));
+const REVEAL = IS_MAC ? 'Show in Finder' : OS === 'win32' ? 'Show in Explorer' : 'Show in folder';
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-const tilde = (p) => p.replace(/^\/Users\/[^/]+/, '~');
+const tilde = (p) => p.replace(/^\/(Users|home)\/[^/]+/, '~');
+const baseName = (p) => p.split(/[\\/]/).filter(Boolean).pop() || p;
 
 // ---------- derived ----------
 function visibleTitles() {
@@ -92,7 +99,7 @@ function renderSources() {
     html += `
       <div class="source active" data-src="${esc(state.source)}" role="listitem" tabindex="0">
         ${discIco(isBluray(state.disc), true)}
-        <div class="meta"><div class="name">${esc(state.source.split('/').pop())}</div><div class="sub">${state.disc ? (isBluray(state.disc) ? 'Blu-ray' : 'DVD') + ' · ' : ''}Image / folder</div></div>
+        <div class="meta"><div class="name">${esc(baseName(state.source))}</div><div class="sub">${state.disc ? (isBluray(state.disc) ? 'Blu-ray' : 'DVD') + ' · ' : ''}Image / folder</div></div>
       </div>`;
   }
   if (!discs.length) html += `<div class="no-drive"><span class="slot"></span>${hasDrive ? 'Drive empty' : 'No disc drive found'}</div>`;
@@ -106,7 +113,7 @@ function renderMain() {
   const prevScroll = $('.scroll', main)?.scrollTop || 0;
 
   if (state.scanning) {
-    const name = state.source ? state.source.split('/').pop() : 'disc';
+    const name = state.source ? baseName(state.source) : 'disc';
     main.innerHTML = `
       <div class="empty" aria-busy="true">
         <div class="disc xl spin"></div>
@@ -124,13 +131,17 @@ function renderMain() {
         <p>Spinarr copies titles to MKV losslessly — every audio track, subtitle and chapter, bit for bit.</p>
         ${state.error ? `<div class="error-box" role="alert">${ICON.alert}<div><b>Couldn't read this source</b><span>${esc(state.error)}</span></div></div>` : ''}
         <div class="cta">
-          <button class="primary-btn" data-action="open">${ICON.folder} Open image or folder <kbd>⌘O</kbd></button>
+          ${IS_MAC ? `<button class="primary-btn" data-action="open">${ICON.folder} Open image or folder <kbd>${keys('⌘O')}</kbd></button>`
+            : `<div class="cta-row"><button class="primary-btn" data-action="open">${ICON.rip} Open disc image <kbd>${keys('⌘O')}</kbd></button>
+               <button class="ghost-btn tall" data-action="open-folder">${ICON.folder} Open folder</button></div>`}
           <small>or drop an ISO, VIDEO_TS or BDMV folder anywhere</small>
         </div>
         <ul class="features">
           <li>${ICON.layers}<b>Bit for bit</b><span>A straight remux to MKV. Nothing is re-encoded.</span></li>
           <li>${ICON.wave}<b>Every track</b><span>All audio, subtitles and chapters, with languages kept.</span></li>
-          <li>${ICON.shield}<b>Sandboxed</b><span>Discs are parsed by a hardened, locked-down engine.</span></li>
+          ${state.system?.sandbox === 'none'
+            ? `<li>${ICON.shield}<b>Hardened</b><span>Discs are parsed by patched, fuzz-tested libraries.</span></li>`
+            : `<li>${ICON.shield}<b>Sandboxed</b><span>Discs are parsed by a hardened, locked-down engine.</span></li>`}
         </ul>
       </div>`;
     return;
@@ -260,7 +271,7 @@ function actionBar() {
           : free != null ? `<div class="cap-bar" title="Share of free space this rip needs"><div style="width:${pct}%"></div></div>` : ''}
         <div class="d-sub">${n ? `${fmtBytes(bytes)} needed` : 'Nothing selected'}${free != null ? ` · ${fmtBytes(free)} free` : ''}</div>
       </div>
-      <button class="primary-btn" data-action="rip" ${n && !low && !blocked ? '' : 'disabled'}>${ICON.rip} Rip ${n ? plural(n, 'title') : ''} <kbd>⌘↩</kbd></button>
+      <button class="primary-btn" data-action="rip" ${n && !low && !blocked ? '' : 'disabled'}>${ICON.rip} Rip ${n ? plural(n, 'title') : ''} <kbd>${keys('⌘↩')}</kbd></button>
     </div>`;
 }
 
@@ -316,7 +327,7 @@ function renderQueue() {
     if (j.state === 'failed') status = 'Failed';
     const btn = ['queued', 'ripping'].includes(j.state)
       ? `<button class="icon-btn" data-cancel="${esc(j.id)}" title="Cancel" aria-label="Cancel ${esc(j.fileName)}">${ICON.x}</button>`
-      : j.state === 'done' ? `<button class="icon-btn" data-reveal="${esc(j.id)}" title="Show in Finder" aria-label="Show ${esc(j.fileName)} in Finder">${ICON.reveal}</button>` : '';
+      : j.state === 'done' ? `<button class="icon-btn" data-reveal="${esc(j.id)}" title="${REVEAL}" aria-label="${REVEAL}: ${esc(j.fileName)}">${ICON.reveal}</button>` : '';
     const ico = j.state === 'ripping' ? `<span class="job-ico">${ring(j.progress)}</span>` : JOB_ICON[j.state] || '';
     return `
       <div class="job ${j.state}${seenJobs.has(j.id) ? '' : ' enter'}">
@@ -337,6 +348,35 @@ function toast(kind, html, action) {
   el.innerHTML = `${kind === 'ok' ? ICON.okCircle : kind === 'bad' ? ICON.alert : ICON.rip}<div class="msg">${html}</div>${action || ''}`;
   $('#toasts').append(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, kind === 'bad' ? 7000 : 4500);
+}
+
+// ---------- system setup (sandbox, libdvdcss) ----------
+function renderSystem() {
+  const sys = state.system;
+  if (!sys) return;
+  const ok = (b) => `<span class="status ${b ? 'ok' : 'warn'}">${b ? ICON.okCircle : ICON.alert}</span>`;
+  const sandboxText = { macos: 'On · macOS sandbox', bubblewrap: 'On · bubblewrap', none: 'Off' }[sys.sandbox];
+  const sandboxNote = sys.sandbox !== 'none'
+    ? 'Disc parsing runs with no network and no access to your files beyond the disc and output folder.'
+    : sys.platform === 'win32'
+      ? 'Windows has no sandbox Spinarr can use yet. Discs are still read by patched, fuzz-tested parsers.'
+      : 'Install bubblewrap to run disc parsing with no network and no access to your files.';
+  const cmd = (c) => `<div class="cmd"><code>${esc(c)}</code><button type="button" class="link-btn" data-action="copy" data-copy="${esc(c)}">Copy</button></div>`;
+  const d = sys.dvdcss;
+  const dvdcssBody = d.installed
+    ? 'Encrypted DVDs can be read.'
+    : d.canPick
+      ? `Needed for most commercial DVDs. Download <b>libdvdcss-2.dll</b> (64-bit) from VideoLAN, then choose it here.
+         <div class="row-btns"><button type="button" class="ghost-btn" data-action="dvdcss-page">Open VideoLAN download</button>
+         <button type="button" class="ghost-btn" data-action="dvdcss-pick">Choose DLL…</button></div>`
+      : `Needed for most commercial DVDs. Spinarr doesn't ship it. Install it with:${cmd(d.command)}`;
+  $('#systemGroup').innerHTML = `
+    <div class="group-row top">${ok(sys.sandbox !== 'none' || sys.platform === 'win32')}
+      <div class="gr-text"><b>Engine sandbox <span class="pill-state">${sandboxText}</span></b><small>${sandboxNote}</small>
+      ${sys.bwrapHelp ? cmd(sys.bwrapHelp) : ''}</div></div>
+    <div class="group-row top">${ok(d.installed)}
+      <div class="gr-text"><b>DVD decryption <span class="pill-state">${d.installed ? 'libdvdcss installed' : 'Not installed'}</span></b><small>${dvdcssBody}</small></div></div>`;
+  $('#setupBtn').hidden = d.installed && !sys.bwrapHelp;
 }
 
 // ---------- focus helpers (re-renders replace DOM nodes) ----------
@@ -460,13 +500,14 @@ async function startRip() {
   }
 }
 
-async function openPicker() { const p = await spinarr.pickSource(); if (p) loadSource(p); }
+async function openPicker(kind = IS_MAC ? 'any' : 'file') { const p = await spinarr.pickSource(kind); if (p) loadSource(p); }
 
 function openSettings() {
   if ($('#settingsDlg').open) return;
   $('#setOutput').value = tilde(state.settings.outputDir);
   $('#setMin').value = state.settings.minMinutes;
   $('#setChapters').checked = state.settings.accurateChapters;
+  renderSystem();
   $('#settingsDlg').showModal();
 }
 
@@ -494,6 +535,13 @@ document.addEventListener('click', async (e) => {
 
   switch (t.dataset.action) {
     case 'open': openPicker(); break;
+    case 'open-folder': openPicker('folder'); break;
+    case 'dvdcss-page': spinarr.openDvdcssPage(); break;
+    case 'dvdcss-pick':
+      try { state.system = await spinarr.installDvdcss(); renderSystem(); if (state.system.dvdcss.installed) toast('ok', '<b>libdvdcss installed.</b> Encrypted DVDs can now be read.'); }
+      catch (err) { toast('bad', esc(cleanErr(err))); }
+      break;
+    case 'copy': navigator.clipboard.writeText(t.dataset.copy || ''); t.textContent = 'Copied'; setTimeout(() => { t.textContent = 'Copy'; }, 1500); break;
     case 'output': {
       state.settings = await spinarr.pickOutput();
       refreshFreeSpace();
@@ -523,7 +571,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   const typing = e.target.matches('input:not([type=checkbox]), textarea');
-  if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); openPicker(); return; }
+  if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); openPicker(e.shiftKey ? 'folder' : undefined); return; }
   if (mod && e.key === ',') { e.preventDefault(); openSettings(); return; }
   if ($('#settingsDlg').open) return;
   if (mod && e.key === 'Enter') {
@@ -566,7 +614,9 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowLeft') { e.preventDefault(); toggleOpen(n, false); }
 });
 
-$('#openBtn').addEventListener('click', openPicker);
+$('#openBtn').addEventListener('click', () => openPicker());
+$('#openFolderBtn').addEventListener('click', () => openPicker('folder'));
+$('#setupBtn').addEventListener('click', openSettings);
 $('#clearBtn').addEventListener('click', () => spinarr.clearFinished());
 
 // settings dialog
@@ -596,7 +646,7 @@ window.addEventListener('drop', (e) => {
   const f = e.dataTransfer.files[0];
   if (!f) return;
   let p = spinarr.pathForFile(f);
-  if (/\/VIDEO_TS\/?$/i.test(p)) p = p.replace(/\/VIDEO_TS\/?$/i, '');
+  p = p.replace(/[\\/](VIDEO_TS|BDMV)[\\/]?$/i, '');
   if (p) loadSource(p);
 });
 
@@ -633,7 +683,18 @@ spinarr.on('drives-changed', (drives) => {
 
 // boot
 (async () => {
+  document.body.classList.add(`os-${OS}`);
+  for (const k of $$('[data-keys]')) k.textContent = keys(k.dataset.keys);
+  if (!IS_MAC) {
+    $('#openBtn span').textContent = 'Open disc image…';
+    $('#openBtn').title = keys('⌘O');
+    $('#openFolderBtn').title = keys('⇧⌘O');
+    $('#openFolderBtn').hidden = false;
+  }
+  $('#settingsBtn').title = `Settings (${keys('⌘,')})`;
   state.settings = await spinarr.getSettings();
+  state.system = await spinarr.system();
+  renderSystem();
   state.drives = await spinarr.drives();
   renderSources();
   renderMain();

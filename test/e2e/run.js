@@ -54,6 +54,11 @@ function launch(name, i, env) {
   const results = [];
   for (const name of names) {
     const sc = scenarios[name];
+    if (sc.platforms && !sc.platforms.includes(process.platform)) {
+      console.log(`SKIP  ${name.padEnd(30)}         ${sc.platforms.join('/')} only`);
+      results.push({ name, stories: sc.stories, title: sc.title, pass: true, skipped: true, secs: '0.0', notes: [`skipped: ${sc.platforms.join('/')} only`] });
+      continue;
+    }
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `spinarr-e2e-${name}-`));
     const env = { tmp, userData: path.join(tmp, 'userData'), outDir: path.join(tmp, 'out') };
     fs.mkdirSync(env.userData, { recursive: true });
@@ -83,17 +88,19 @@ function launch(name, i, env) {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
-  const passed = results.filter((r) => r.pass).length;
+  const passed = results.filter((r) => r.pass && !r.skipped).length;
+  const skipped = results.filter((r) => r.skipped).length;
+  const ran = results.length - skipped;
   fs.writeFileSync(path.join(REPORT_DIR, 'e2e.json'), JSON.stringify(results, null, 2));
   const md = [
     `# Spinarr end-to-end results`, '',
-    `${passed}/${results.length} scenarios passed on ${new Date().toISOString().slice(0, 10)} (macOS ${os.release()}, ${os.arch()}).`, '',
+    `${passed}/${ran} scenarios passed${skipped ? ` (${skipped} skipped on this OS)` : ''} on ${new Date().toISOString().slice(0, 10)} (${os.platform()} ${os.release()}, ${os.arch()}).`, '',
     '| Result | Scenario | Stories | Time |', '|---|---|---|---|',
-    ...results.map((r) => `| ${r.pass ? '✅' : '❌'} | ${r.title} | ${r.stories.join(', ')} | ${r.secs}s |`),
+    ...results.map((r) => `| ${r.skipped ? '⏭️' : r.pass ? '✅' : '❌'} | ${r.title} | ${r.stories.join(', ')} | ${r.secs}s |`),
     '', ...results.filter((r) => r.notes.length).flatMap((r) => [`**${r.name}**`, ...r.notes.map((n) => `- ${n}`), '']),
     ...results.filter((r) => !r.pass).flatMap((r) => [`### ❌ ${r.name}`, '```', String(r.error).slice(0, 3000), '```', '']),
   ].join('\n');
   fs.writeFileSync(path.join(REPORT_DIR, 'e2e.md'), md);
-  console.log(`\n${passed}/${results.length} passed. Report: ${path.join(REPORT_DIR, 'e2e.md')}`);
-  process.exit(passed === results.length ? 0 : 1);
+  console.log(`\n${passed}/${ran} passed${skipped ? `, ${skipped} skipped` : ''}. Report: ${path.join(REPORT_DIR, 'e2e.md')}`);
+  process.exit(passed === ran ? 0 : 1);
 })();

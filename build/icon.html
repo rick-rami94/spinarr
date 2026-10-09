@@ -1,0 +1,37 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; width: 1024px; height: 1024px; background: transparent; overflow: hidden; }
+  /* macOS icon grid: an 824px rounded square centred on a 1024px canvas. */
+  .tile {
+    position: absolute; left: 100px; top: 92px; width: 824px; height: 824px; border-radius: 185px;
+    background: radial-gradient(120% 90% at 30% 15%, #2a2a31 0%, #141418 55%, #0b0b0d 100%);
+    box-shadow: 0 24px 40px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.08), inset 0 0 0 2px rgba(255,255,255,.04);
+    overflow: hidden;
+  }
+  .glow { position: absolute; inset: 0; background: radial-gradient(60% 60% at 50% 55%, rgba(255,181,71,.16), transparent 70%); }
+  .disc {
+    position: absolute; left: 132px; top: 132px; width: 560px; height: 560px; border-radius: 50%;
+    background:
+      radial-gradient(circle closest-side, transparent 0 15%, rgba(255,255,255,.6) 15.5% 16.5%, rgba(214,219,228,.95) 17% 29%, rgba(0,0,0,.22) 29.5% 30.5%, transparent 31% 97.6%, rgba(255,255,255,.5) 98% 100%),
+      repeating-radial-gradient(circle, rgba(255,255,255,.05) 0 1px, transparent 1px 4px),
+      conic-gradient(from 115deg, #a3aab8, #eef1f6 8%, #7f8899 19%, #d3d8e1 31%, #8e97a8 44%, #f4f6fa 55%, #78829a 67%, #dde1e8 80%, #a3aab8);
+    -webkit-mask: radial-gradient(circle closest-side, transparent 0 11%, #000 11.6%);
+    filter: drop-shadow(0 30px 40px rgba(0,0,0,.5));
+  }
+  .disc::before {
+    content: ""; position: absolute; inset: 0; border-radius: 50%; opacity: .8; filter: saturate(1.5);
+    background: conic-gradient(from 20deg, rgba(255,90,120,0) 0%, rgba(255,140,80,.5) 7%, rgba(255,230,90,.42) 12%, rgba(90,240,180,.4) 17%, rgba(90,160,255,.45) 22%, rgba(190,110,255,.4) 27%, rgba(255,90,120,0) 34%,
+      rgba(255,90,120,0) 50%, rgba(255,140,80,.4) 57%, rgba(255,230,90,.34) 62%, rgba(90,240,180,.32) 67%, rgba(90,160,255,.38) 72%, rgba(190,110,255,.32) 77%, rgba(255,90,120,0) 84%);
+    -webkit-mask: radial-gradient(circle closest-side, transparent 0 31%, #000 33% 96%, transparent 97.5%);
+  }
+  .disc::after { content: ""; position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: soft-light;
+    background: linear-gradient(135deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 38%, rgba(0,0,0,0) 62%, rgba(0,0,0,.2) 100%); }
+  /* the amber "laser" arc from the wordmark */
+  svg { position: absolute; left: 92px; top: 92px; width: 640px; height: 640px; overflow: visible; }
+</style></head><body>
+  <div class="tile">
+    <div class="glow"></div>
+    <div class="disc"></div>
+    <svg viewBox="0 0 640 640"><path d="M320 28 A292 292 0 0 1 612 320" fill="none" stroke="#ffb547" stroke-width="34" stroke-linecap="round"/></svg>
+  </div>
+</body></html>

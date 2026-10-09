@@ -17,7 +17,12 @@
           <button class="side-btn" id="openBtn">
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             <span>Open image or folder…</span>
-            <kbd>⌘O</kbd>
+            <kbd data-keys="⌘O">⌘O</kbd>
+          </button>
+          <button class="side-btn" id="openFolderBtn" hidden>
+            <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+            <span>Open disc folder…</span>
+            <kbd data-keys="⇧⌘O">⇧⌘O</kbd>
           </button>
         </section>
 
@@ -34,12 +39,13 @@
         <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4"/><path class="mark-arc" d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8"/></svg>
         <span class="wordmark">Spinarr</span>
         <span class="tagline">Lossless · Open source</span>
+        <button class="setup-btn" id="setupBtn" hidden><span class="dot"></span>Finish setup</button>
       </footer>
     </aside>
 
     <div class="stage">
       <div class="chrome stage-chrome">
-        <button class="icon-btn" id="settingsBtn" title="Settings (⌘,)" aria-label="Settings">
+        <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
           <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
         </button>
       </div>
@@ -86,6 +92,9 @@
           <input type="checkbox" class="switch" id="setChapters" />
         </label>
       </div>
+
+      <div class="group-title">System</div>
+      <div class="group" id="systemGroup"></div>
 
       <div class="dlg-actions"><button class="primary-btn" value="ok" autofocus>Done</button></div>
     </form>

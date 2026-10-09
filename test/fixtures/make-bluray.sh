@@ -1,10 +1,10 @@
 #!/bin/sh
 # Builds the Blu-ray fixture matrix -> test/fixtures/out/bd_*
-# Needs: brew install ffmpeg (with libx264), cmake. tsMuxeR is built from source on first run.
+# Needs: ffmpeg with libx264, cmake (and genisoimage on Linux). tsMuxeR is built from source on first run.
 set -eu
 cd "$(dirname "$0")"
+. ./common.sh
 TSM="$(pwd)/../tools/$(sh ../tools/build-tsmuxer.sh | tail -1)"
-FONT=/System/Library/Fonts/Supplemental/Arial.ttf
 OUT="$(pwd)/out"; SRC="$OUT/bdsrc"
 rm -rf "$OUT"/bd_* "$SRC"; mkdir -p "$SRC"
 FF="ffmpeg -hide_banner -loglevel error -y"
@@ -52,14 +52,14 @@ mux "$D" 1 "$FEAT_VIDEO" "A_AC3, \"$SRC/feat_en.ac3\", lang=eng" "A_AC3, \"$SRC/
 CHAPTERS=""
 mux "$D" 2 "V_MPEG4/ISO/AVC, \"$SRC/trailer.h264\", fps=23.976, insertSEI, contSPS" "A_AC3, \"$SRC/trailer_en.ac3\", lang=eng"
 mux "$D" 3 "V_MPEG4/ISO/AVC, \"$SRC/logo.h264\", fps=23.976, insertSEI, contSPS" "A_AC3, \"$SRC/logo_en.ac3\", lang=eng"
-hdiutil makehybrid -quiet -udf -udf-version 2.50 -udf-volume-name MY_TEST_MOVIE -o "$OUT/bd_movie.iso" "$D"
+mkiso MY_TEST_MOVIE "$OUT/bd_movie.iso" "$D" 2.50
 
 # --- encrypted-looking disc: AACS directory present, no libaacs/keys -> must be reported, not crash ---
 cp -R "$D" "$OUT/bd_aacs"; mkdir -p "$OUT/bd_aacs/AACS"
 head -c 2048 /dev/urandom > "$OUT/bd_aacs/AACS/Unit_Key_RO.inf"; head -c 1024 /dev/urandom > "$OUT/bd_aacs/AACS/MKB_RO.inf"
 
 # --- hostile / malformed ---
-hdiutil makehybrid -quiet -udf -udf-version 2.50 -udf-volume-name '<img src=x onerror=__xss=3>' -o "$OUT/bd_xss_label.iso" "$D"
+mkiso '<img src=x onerror=__xss=3>' "$OUT/bd_xss_label.iso" "$D" 2.50
 cp -R "$D" "$OUT/bd_truncated_mpls"; for f in "$OUT"/bd_truncated_mpls/BDMV/PLAYLIST/*.mpls "$OUT"/bd_truncated_mpls/BDMV/BACKUP/PLAYLIST/*.mpls; do head -c 60 "$f" > "$f.t" && mv "$f.t" "$f"; done
 mkdir -p "$OUT/bd_empty/BDMV"
 echo "blu-ray fixtures -> $OUT/bd_*"; ls -d "$OUT"/bd_*
