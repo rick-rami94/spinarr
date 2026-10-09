@@ -178,4 +178,4 @@ Spinarr is for making personal backups of discs you own. Getting around copy pro
 
 ## License
 
-GPL-3.0-or-later. Spinarr links GPL components of ffmpeg and libdvdread. The UI bundles the [Inter](https://rsms.me/inter/) typeface (SIL Open Font License, `app/renderer/fonts/Inter-LICENSE.txt`).
+GPL-3.0-or-later. Spinarr links GPL components of ffmpeg and libdvdread. The UI bundles the [Inter](https://rsms.me/inter/) and [Archivo](https://github.com/Omnibus-Type/Archivo) typefaces (SIL Open Font License; licences in `app/renderer/fonts/`).
