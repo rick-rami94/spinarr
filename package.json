@@ -1,7 +1,7 @@
 {
   "name": "spinarr",
   "productName": "Spinarr",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Open-source DVD and Blu-ray to MKV ripper with a modern UI",
   "main": "app/main.js",
   "license": "GPL-3.0-or-later",
