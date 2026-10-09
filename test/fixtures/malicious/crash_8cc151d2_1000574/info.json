@@ -1,0 +1,11 @@
+{
+ "i": 571,
+ "seed": 1000574,
+ "rc": 1,
+ "dt": 0.4297609329223633,
+ "status": "crash",
+ "kind": "runtime error: applying zero offset to null pointer",
+ "site": "dvdinfo.c:57:40",
+ "origin": "dvdinfo.c",
+ "stderr": "libdvdread: Can't seek to block 2581861816\nlibdvdread: Can't seek to block 2581861816\nlibdvdread: Can't seek to block 2581861816\nlibdvdread: Couldn't find device name.\nlibdvdread: CHECK_VALUE failed in ../src/ifo_read.c:2169 for pgc->nr_of_programs <= pgc->nr_of_cells\nlibdvdread: CHECK_VALUE failed in ../src/ifo_read.c:2188 for pgc->cell_playback_offset != 0\ndvdinfo.c:57:40: runtime error: applying zero offset to null pointer\n    #0 0x000104f6b3de in main dvdinfo.c:112\n    #1 0x7ff81477b52f in start+0xbef (dyld:x86_64+0xfffffffffffde52f)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior dvdinfo.c:57:40 \n"
+}

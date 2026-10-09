@@ -1,0 +1,88 @@
+Subject: [PATCH] avformat/dvdvideodec: keep AC3 frames that inherit their predecessor's PTS
+
+Commit 0912407b9d ("discard duplicate or partial AC3 samples") drops any AC3
+packet whose PTS is <= the previous one. When an AC3 frame straddles a PES
+boundary, timestamp assignment can stamp two consecutive, different frames
+with the same PTS, so the demuxer silently discards real audio (a 32 ms gap
+every few seconds on affected discs).
+
+Only treat a same-PTS frame as a duplicate when it is byte-identical to the
+previous frame (CRC-32). Otherwise keep it, placed half a frame after its
+predecessor so timestamps stay strictly increasing.
+
+Found by Spinarr's lossless remux tests (every source AC3 packet must survive).
+---
+--- a/libavformat/dvdvideodec.c
++++ b/libavformat/dvdvideodec.c
+@@ -41,6 +41,7 @@
+ #include "libavcodec/ac3_parser.h"
+ #include "libavutil/avstring.h"
+ #include "libavutil/avutil.h"
++#include "libavutil/crc.h"
+ #include "libavutil/intreadwrite.h"
+ #include "libavutil/mem.h"
+ #include "libavutil/opt.h"
+@@ -169,6 +170,7 @@
+     int                         play_started;       /* signal that playback has started */
+     DVDVideoPlaybackState       play_state;         /* the active playback state */
+     int64_t                     *prev_pts;          /* track the previous PTS emitted per stream */
++    uint32_t                    *prev_crc;          /* CRC of the previous AC3 frame emitted per stream */
+     int64_t                     pts_offset;         /* PTS discontinuity offset (ex. VOB change) */
+     int                         seek_warned;        /* signal that we warned about seeking limits */
+     int                         subdemux_reset;     /* signal that subdemuxer should be reset */
+@@ -1619,7 +1621,8 @@
+ 
+ end_ready:
+     c->prev_pts = av_malloc(s->nb_streams * sizeof(int64_t));
+-    if (!c->prev_pts)
++    c->prev_crc = av_calloc(s->nb_streams, sizeof(uint32_t));
++    if (!c->prev_pts || !c->prev_crc)
+         return AVERROR(ENOMEM);
+ 
+     for (int i = 0; i < s->nb_streams; i++)
+@@ -1689,14 +1692,35 @@
+     if (st_subdemux->codecpar->codec_type == AVMEDIA_TYPE_AUDIO &&
+         st_subdemux->codecpar->codec_id == AV_CODEC_ID_AC3) {
+ 
+-        if (pkt->pts <= c->prev_pts[pkt->stream_index])
+-            goto discard;
++        int64_t  prev = c->prev_pts[pkt->stream_index];
++        uint32_t crc;
+ 
+         ret = av_ac3_parse_header(pkt->buf->data, pkt->size,
+                                   &ac3_bitstream_id, &ac3_frame_size);
+ 
+         if (ret < 0 || pkt->size != ac3_frame_size)
+             goto discard;
++
++        crc = av_crc(av_crc_get_table(AV_CRC_32_IEEE), 0, pkt->data, pkt->size);
++
++        if (prev != AV_NOPTS_VALUE && pkt->pts <= prev) {
++            /*
++             * A frame straddling a PES boundary can inherit its predecessor's PTS.
++             * Only a byte-identical repeat is a true duplicate; anything else is real
++             * audio, so keep it and place it half a frame after its predecessor.
++             */
++            AVStream *ost = s->streams[pkt->stream_index];
++            int64_t half;
++
++            if (pkt->pts != prev || crc == c->prev_crc[pkt->stream_index] ||
++                ost->codecpar->sample_rate <= 0)
++                goto discard;
++
++            half = av_rescale_q(768, (AVRational) { 1, ost->codecpar->sample_rate }, ost->time_base);
++            pkt->pts = pkt->dts = prev + FFMAX(half, 1);
++        }
++
++        c->prev_crc[pkt->stream_index] = crc;
+     }
+ 
+     av_log(s, AV_LOG_TRACE, "st=%d pts=%" PRId64 " dts=%" PRId64 " "
+@@ -1732,6 +1756,7 @@
+ 
+     dvdvideo_ifo_close(s);
+ 
++    av_freep(&c->prev_crc);
+     if (c->prev_pts)
+         av_freep(&c->prev_pts);
+ 

@@ -1,0 +1,23 @@
+Subject: [PATCH] avformat/dvdvideodec: enable libdvdnav read-ahead
+
+With read-ahead disabled, libdvdnav fetches one 2048-byte sector per
+dvdnav_get_next_block() call. Disc images hide this behind the OS page cache,
+but a physical drive opened through the raw device (as libdvdread does for CSS)
+then sees one command per sector: ~240 IOPS, ~0.46 MB/s on a USB DVD drive.
+
+dvdvideodec uses the copying dvdnav_get_next_block() API, which is correct with
+the read cache on. Enabling it lets libdvdnav issue reads of up to 512 sectors:
+measured 2.6 MB/s on the same drive and disc (drive maximum: 3.4 MB/s), a ~5.5x
+speedup for real-disc demuxing. Output is byte-identical.
+---
+--- a/libavformat/dvdvideodec.c
++++ b/libavformat/dvdvideodec.c
+@@ -533,7 +533,7 @@
+ 
+     if (!state->dvdnav                                                          ||
+         dvdnav_open_status != DVDNAV_STATUS_OK                                  ||
+-        dvdnav_set_readahead_flag(state->dvdnav, 0) != DVDNAV_STATUS_OK         ||
++        dvdnav_set_readahead_flag(state->dvdnav, 1) != DVDNAV_STATUS_OK         ||
+         dvdnav_set_PGC_positioning_flag(state->dvdnav, 1) != DVDNAV_STATUS_OK   ||
+         dvdnav_get_region_mask(state->dvdnav, &disc_region_mask) != DVDNAV_STATUS_OK) {
+ 

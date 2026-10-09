@@ -1,0 +1,37 @@
+Subject: [PATCH] avformat/bluray: open an explicitly requested playlist of any length
+
+The protocol always listed titles with TITLES_RELEVANT and a hard-coded
+180 s minimum, and failed with EIO when that list was empty, even when
+-playlist named a valid playlist. Bonus features under 3 minutes, duplicate
+playlists and discs with only short titles could not be opened. When a
+playlist is requested explicitly, list all titles instead (libbluray still
+needs bd_get_titles() before bd_select_playlist()).
+
+Also skip a NULL bd_get_title_info() result instead of dereferencing it.
+---
+--- a/libavformat/bluray.c
++++ b/libavformat/bluray.c
+@@ -137,8 +137,12 @@
+     }
+     */
+ 
+-    /* load title list */
+-    num_title_idx = bd_get_titles(bd->bd, TITLES_RELEVANT, MIN_PLAYLIST_LENGTH);
++    /* load title list: filtered when we must pick a playlist, unfiltered when one was
++     * requested explicitly (so short bonus features and duplicates can still be opened) */
++    if (bd->playlist < 0)
++        num_title_idx = bd_get_titles(bd->bd, TITLES_RELEVANT, MIN_PLAYLIST_LENGTH);
++    else
++        num_title_idx = bd_get_titles(bd->bd, TITLES_ALL, 0);
+     av_log(h, AV_LOG_INFO, "%d usable playlists:\n", num_title_idx);
+     if (num_title_idx < 1) {
+         return AVERROR(EIO);
+@@ -150,6 +154,8 @@
+         int i;
+         for (i = 0; i < num_title_idx; i++) {
+             BLURAY_TITLE_INFO *info = bd_get_title_info(bd->bd, i, 0);
++            if (!info)
++                continue;
+ 
+             av_log(h, AV_LOG_INFO, "playlist %05d.mpls (%d:%02d:%02d)\n",
+                    info->playlist,

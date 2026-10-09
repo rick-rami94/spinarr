@@ -1,0 +1,83 @@
+Subject: [PATCH] libbluray: bounds-check clip info and playlist mark indices
+
+Found by fuzzing Spinarr's bdinfo (ASan/UBSan) against generated BDMV structures:
+982 crashes in 20,000 mutated discs on libbluray 1.5.0, all fixed by this patch.
+
+* _fill_mark (navigation.c): play_item_ref from the playlist indexed the clip list
+  before it was range-checked (heap read past the clip list).
+* _parse_cpi EP map (clpi_parse.c): coarse entries' ref_ep_fine_id index the fine
+  table but were never validated (heap reads in clpi_lookup_spn). Reject the map.
+* clpi_find_stc_spn: an stc_id below the ATC sequence's offset produced a negative
+  index (out-of-bounds / use-after-free reads).
+* clpi_lookup_spn: with before=1, jj could step to -1 (fine[-1]).
+* bs_seek_byte (bits.c): disc-supplied offsets were shifted left as signed
+  int64 without range checks (undefined behaviour on negative/huge values).
+---
+--- a/src/libbluray/bdnav/clpi_parse.c
++++ b/src/libbluray/bdnav/clpi_parse.c
+@@ -362,6 +362,15 @@
+         fine[ii].i_end_position_offset = bs_read(bits, 3);
+         fine[ii].pts_ep                = bs_read(bits, 11);
+         fine[ii].spn_ep                = bs_read(bits, 17);
++    }
++
++    /* coarse entries index the fine table: reject maps that point outside it */
++    for (ii = 0; ii < ee->num_ep_coarse; ii++) {
++        if (coarse[ii].ref_ep_fine_id >= ee->num_ep_fine) {
++            BD_DEBUG(DBG_HDMV|DBG_CRIT, "clpi_parse: invalid EP map (coarse %d -> fine %u of %u)\n",
++                     ii, coarse[ii].ref_ep_fine_id, ee->num_ep_fine);
++            return 0;
++        }
+     }
+     return 1;
+ }
+@@ -426,8 +435,9 @@
+ 
+     for (ii = 0; ii < cl->sequence.num_atc_seq; ii++) {
+         atc = &cl->sequence.atc_seq[ii];
+-        if (stc_id < atc->offset_stc_id + atc->num_stc_seq) {
+-            return atc->stc_seq[stc_id - atc->offset_stc_id].spn_stc_start;
++        /* stc_id comes from the playlist: it can be below this ATC sequence's offset */
++        if (stc_id >= atc->offset_stc_id && stc_id < atc->offset_stc_id + atc->num_stc_seq) {
++            return atc->stc_seq ? atc->stc_seq[stc_id - atc->offset_stc_id].spn_stc_start : 0;
+         }
+     }
+     return 0;
+@@ -524,7 +534,7 @@
+     }
+ 
+ done:
+-    if (before) {
++    if (before && jj > 0) {
+         jj--;
+     }
+     if (jj == end) {
+--- a/src/libbluray/bdnav/navigation.c
++++ b/src/libbluray/bdnav/navigation.c
+@@ -546,6 +546,13 @@
+ 
+     mark->mark_type = plm->mark_type;
+     mark->clip_ref = plm->play_item_ref;
++    /* play_item_ref comes from the playlist file: don't index past the clip list */
++    if (mark->clip_ref >= title->clip_list.count) {
++        mark->clip_ref = 0;
++        mark->clip_pkt = mark->title_pkt = 0;
++        mark->clip_time = mark->title_time = 0;
++        return;
++    }
+     clip = &title->clip_list.clip[mark->clip_ref];
+     if (clip->cl != NULL && mark->clip_ref < title->pl->list_count) {
+         mark->clip_pkt = clpi_lookup_spn(clip->cl, plm->time, 1,
+--- a/src/util/bits.c
++++ b/src/util/bits.c
+@@ -164,6 +164,10 @@
+ 
+ int bs_seek_byte( BITSTREAM *s, int64_t off)
+ {
++    /* offsets come from the disc: reject values whose bit position would overflow */
++    if (off < 0 || off > INT64_MAX / 8) {
++        return -1;
++    }
+     return _bs_seek(s, off << 3, SEEK_SET);
+ }
+ 

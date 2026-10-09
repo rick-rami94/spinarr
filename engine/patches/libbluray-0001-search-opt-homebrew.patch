@@ -1,0 +1,17 @@
+Subject: [PATCH] dl_posix: also search /opt/homebrew/lib on macOS
+
+Homebrew on Apple Silicon installs libaacs/libbdplus to /opt/homebrew/lib,
+which is not in dyld's default search path (only /usr/local/lib is listed).
+---
+--- a/src/file/dl_posix.c
++++ b/src/file/dl_posix.c
+@@ -77,7 +77,8 @@
+     */
+     static const char *search_paths[] = {"", "@loader_path/lib/", "@loader_path/", "@executable_path/",
+                                          "@executable_path/lib/", "@executable_path/../lib/",
+-                                         "@executable_path/../Resources/", "@rpath/", "/usr/local/lib/", NULL};
++                                         "@executable_path/../Resources/", "@rpath/", "/usr/local/lib/",
++                                         "/opt/homebrew/lib/", /* Apple Silicon Homebrew */ NULL};
+     version = NULL;
+ #else
+     static const char ext[] = ".so";

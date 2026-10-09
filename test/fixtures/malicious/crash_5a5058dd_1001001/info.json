@@ -1,0 +1,11 @@
+{
+ "i": 998,
+ "seed": 1001001,
+ "rc": 0,
+ "dt": 0.11516070365905762,
+ "status": "crash",
+ "kind": "signal",
+ "site": "? ?",
+ "origin": "unknown",
+ "stderr": "libdvdread: Can't seek to block 2581861816\nlibdvdread: Can't seek to block 2581861816\nlibdvdread: Can't seek to block 2581861816\nlibdvdread: Couldn't find device name.\nlibdvdread: Zero check failed in ../src/ifo_read.c:917 for vmgi_mat->zero_5 : 0x0000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000\nlibdvdread: Zero check failed in ../src/ifo_read.c:922 for vmgi_mat->zero_10 : 0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff0000000000000000000000000000000000\nlibdvdread: CHECK_VALUE failed in ../src/ifo_read.c:925 for vmgi_mat->vmgi_last_sector * 2 <= vmgi_mat->vmg_last_sector\nlibdvdread: CHECK_VALUE failed in ../src/ifo_read.c:926 for vmgi_mat->vmgi_last_sector * 2 <= vmgi_mat->vmg_last_sector\n==25104==WARNING: AddressSanitizer failed to allocate 0xffffffffbd00001c bytes\nlibdvdread: Invalid IFO for title 1 (VTS_01_0.IFO).\n==25104==WARNING: AddressSanitizer failed to allocate 0xffffffffbd00001c bytes\nlibdvdread: Invalid IFO for title 1 (VTS_01_0.BUP).\n==25104==WARNING: AddressSanitizer failed to allocate 0xffffffffbd00001c bytes\nlibdvdread: Invalid IFO for title 1 (VTS_01_0.IFO).\n==25104==WARNING: AddressSanitizer failed to allocate 0xffffffffbd00001c bytes\nlibdvdread: Invalid IFO for title 1 (VTS_01_0.BUP).\n"
+}

@@ -1,0 +1,9 @@
+{
+ "i": 7582,
+ "seed": 1007585,
+ "rc": 0,
+ "dt": 0.13718509674072266,
+ "status": "badjson",
+ "why": "Expecting value: line 1 column 217 (char 216)",
+ "stdout": "{\"volume\":\"\",\"titles\":[{\"title\":1,\"vts\":1,\"angles\":1,\"chapters\":[],\"duration\":0.000,\"bytes\":0,\"video\":{\"standard\":\"NTSC\",\"aspect\":\"16:9\",\"mpeg\":2},\"audio\":[],\"subtitles\":[]},{\"title\":2,\"vts\":1,\"angles\":1,\"chapters\":[,10.200,9.601,10.200,9.968,12.000],\"duration\":51.969,\"bytes\":42405888,\"video\":{\"standard\":\"NTSC\",\"aspect\":\"16:9\",\"mpeg\":2},\"audio\":[{\"index\":0,\"codec\":\"AC3\",\"channels\":1,\"lang\":\"en\",\"commentary\":false},{\"index\":1,\"codec\":\"AC3\",\"channels\":1,\"lang\":\"es\",\"commentary\":false}],\"subtitles\":[]}]}\n"
+}

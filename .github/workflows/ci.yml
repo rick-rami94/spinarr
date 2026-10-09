@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      ORACLE_FFMPEG_DIR: /opt/homebrew/bin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install build and test tools
+        run: brew install meson ninja nasm pkg-config libdvdcss ffmpeg dvdauthor cmake freetype
+
+      - name: Cache engine dependencies
+        uses: actions/cache@v4
+        with:
+          path: engine/deps/*.tar.xz
+          key: engine-src-${{ hashFiles('engine/build.sh') }}
+
+      - run: npm ci
+      - name: Build engine (verified sources + patches)
+        run: npm run engine
+      - name: Generate test DVDs and Blu-rays (tsMuxeR is built from source)
+        run: npm run fixtures
+
+      - run: npm run test:unit
+      - run: npm run test:security
+      - run: npm run test:engine
+      - name: End-to-end (drives the real app)
+        run: npm run test:e2e
+
+      - name: Upload e2e report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: test/reports/
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm audit --audit-level=moderate

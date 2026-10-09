@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'" />
+  <title>Spinarr</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="titlebar">
+    <div class="brand"><span class="logo"></span>Spinarr</div>
+    <div class="titlebar-actions">
+      <button class="icon-btn" id="settingsBtn" title="Settings">
+        <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="section-label">Sources</div>
+      <div id="sources"></div>
+      <button class="ghost-btn wide" id="openBtn">
+        <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+        Open image or folder…
+      </button>
+      <p class="hint">Or drop an ISO, VIDEO_TS or BDMV folder anywhere.</p>
+    </aside>
+
+    <main class="main" id="main"></main>
+
+    <aside class="queue">
+      <div class="queue-head">
+        <div class="section-label">Queue</div>
+        <button class="link-btn" id="clearBtn" hidden>Clear finished</button>
+      </div>
+      <div id="queueList"></div>
+    </aside>
+  </div>
+
+  <div class="drop-overlay" id="dropOverlay"><div>Drop to scan</div></div>
+
+  <dialog id="settingsDlg">
+    <form method="dialog" class="settings">
+      <h2>Settings</h2>
+      <label class="field">
+        <span>Output folder</span>
+        <div class="row"><input id="setOutput" readonly /><button type="button" class="ghost-btn" id="setOutputBtn">Change…</button></div>
+      </label>
+      <label class="field">
+        <span>Hide titles shorter than</span>
+        <div class="row"><input id="setMin" type="number" min="0" max="60" /> <em>minutes</em></div>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="setChapters" />
+        <span><b>Accurate chapter markers</b><br /><small>Reads the disc twice, so rips take about twice as long. Chapters are already accurate to a fraction of a second without it.</small></span>
+      </label>
+      <div class="dlg-actions"><button class="primary-btn" value="ok">Done</button></div>
+    </form>
+  </dialog>
+
+  <script src="format.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

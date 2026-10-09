@@ -1,0 +1,28 @@
+{
+  "name": "spinarr",
+  "productName": "Spinarr",
+  "version": "0.1.0",
+  "description": "Open-source DVD to MKV ripper with a modern UI",
+  "main": "app/main.js",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "start": "electron .",
+    "engine": "sh engine/build.sh",
+    "fixtures": "sh test/fixtures/make.sh && sh test/fixtures/make-bluray.sh",
+    "test:unit": "node --test 'test/unit/*.test.js'",
+    "test:engine": "node --test 'test/engine/*.test.js'",
+    "test:security": "node --test 'test/security/*.test.js'",
+    "test:e2e": "node test/e2e/run.js",
+    "test": "npm run test:unit && npm run test:security && npm run test:engine && npm run test:e2e",
+    "fixtures:bluray": "sh test/fixtures/make-bluray.sh"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "darwin"
+  ]
+}

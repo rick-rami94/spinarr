@@ -1,0 +1,234 @@
+Subject: [PATCH] libdvdread: harden IFO parsing against malformed discs
+
+Found by fuzzing Spinarr's dvdinfo with AddressSanitizer/UBSan:
+
+* DVDReadBytes: the sector count and buffer size were computed in 32-bit
+  unsigned ints, so a huge byte_size (e.g. from a TT_SRPT last_byte of
+  0xFFFFFFFF) wrapped to a 2 KiB allocation that numsec blocks were then read
+  into: heap overflow with attacker-controlled data. Use size_t, reject
+  oversized requests, and never read past the end of the file.
+* TT_SRPT / VTS_PTT_SRPT / C_ADT / VOBU_ADMAP: validate last_byte so
+  "last_byte + 1 - header" can't wrap and the table must fit in the IFO.
+* ifoRead_PGC_COMMAND_TBL: NULL the command arrays after freeing them on
+  error, which fixes a double free when ifoFree_PGC runs afterwards.
+* ifoRead_PGCIT_internal: a PGC that shares its start byte with an earlier
+  PGC that failed to parse got a NULL pgc and then ref_count++ (NULL write).
+  Also free a failed PGC with ifoFree_PGC so its sub-tables aren't leaked.
+* ifoRead_VTS_PTT_SRPT: PTT offsets below the table header made the reader
+  index before the start of the buffer. Bound every entry.
+* ifoRead_TT_SRPT: clear ifofile->tt_srpt after freeing it on a failed
+  header read (use-after-free / double free in ifoClose).
+* dvd_input: on macOS, also look for libdvdcss in /opt/homebrew/lib and
+  /usr/local/lib (Apple Silicon Homebrew is outside dyld's default path).
+---
+--- a/src/dvd_input.c
++++ b/src/dvd_input.c
+@@ -479,6 +479,13 @@
+ # endif /* WINAPI_PARTITION_DESKTOP */
+ #else
+   dvdcss_library = dlopen(CSS_LIB, RTLD_LAZY);
++# ifdef __APPLE__
++  /* Homebrew on Apple Silicon installs outside dyld's default search path. */
++  if(dvdcss_library == NULL)
++    dvdcss_library = dlopen("/opt/homebrew/lib/" CSS_LIB, RTLD_LAZY);
++  if(dvdcss_library == NULL)
++    dvdcss_library = dlopen("/usr/local/lib/" CSS_LIB, RTLD_LAZY);
++# endif
+ #endif
+ 
+   /* Locate the functions, DVD_V or DVD_A */
+--- a/src/dvd_reader.c
++++ b/src/dvd_reader.c
+@@ -1852,7 +1852,7 @@
+   dvd_reader_t *ctx = dvd_file->ctx;
+   dvd_reader_device_t *dvd = ctx->rd;
+   unsigned char *secbuf_base, *secbuf;
+-  unsigned int numsec, seek_sector, seek_byte;
++  size_t numsec, seek_sector, seek_byte;
+   int ret;
+ 
+   /* Check arguments. */
+@@ -1862,8 +1862,17 @@
+   seek_sector = dvd_file->seek_pos / DVD_VIDEO_LB_LEN;
+   seek_byte   = dvd_file->seek_pos % DVD_VIDEO_LB_LEN;
+ 
++  /* Lengths come from untrusted IFO fields: refuse anything that would
++   * overflow the buffer size or run past the end of the file. */
++  if( byte_size > (size_t)INT32_MAX - 2 * DVD_VIDEO_LB_LEN )
++    return -1;
++
+   numsec = ( ( seek_byte + byte_size ) / DVD_VIDEO_LB_LEN ) +
+     ( ( ( seek_byte + byte_size ) % DVD_VIDEO_LB_LEN ) ? 1 : 0 );
++
++  if( dvd_file->filesize >= 0 &&
++      seek_sector + numsec > (size_t)dvd_file->filesize )
++    return 0;
+ 
+   secbuf_base = malloc( numsec * DVD_VIDEO_LB_LEN + 2048 );
+   if( !secbuf_base ) {
+--- a/src/ifo_read.c
++++ b/src/ifo_read.c
+@@ -2017,7 +2017,7 @@
+       return 0;
+ 
+     if(!(DVDReadBytes(ifop->file, cmd_tbl->pre_cmds, pre_cmds_size))) {
+-      free(cmd_tbl->pre_cmds);
++      { free(cmd_tbl->pre_cmds); cmd_tbl->pre_cmds = NULL; }
+       return 0;
+     }
+   }
+@@ -2027,13 +2027,13 @@
+     cmd_tbl->post_cmds = malloc(post_cmds_size);
+     if(!cmd_tbl->post_cmds) {
+       if(cmd_tbl->pre_cmds)
+-        free(cmd_tbl->pre_cmds);
++        { free(cmd_tbl->pre_cmds); cmd_tbl->pre_cmds = NULL; }
+       return 0;
+     }
+     if(!(DVDReadBytes(ifop->file, cmd_tbl->post_cmds, post_cmds_size))) {
+       if(cmd_tbl->pre_cmds)
+-        free(cmd_tbl->pre_cmds);
+-      free(cmd_tbl->post_cmds);
++        { free(cmd_tbl->pre_cmds); cmd_tbl->pre_cmds = NULL; }
++      { free(cmd_tbl->post_cmds); cmd_tbl->post_cmds = NULL; }
+       return 0;
+     }
+   }
+@@ -2043,17 +2043,17 @@
+     cmd_tbl->cell_cmds = malloc(cell_cmds_size);
+     if(!cmd_tbl->cell_cmds) {
+       if(cmd_tbl->pre_cmds)
+-        free(cmd_tbl->pre_cmds);
++        { free(cmd_tbl->pre_cmds); cmd_tbl->pre_cmds = NULL; }
+       if(cmd_tbl->post_cmds)
+-        free(cmd_tbl->post_cmds);
++        { free(cmd_tbl->post_cmds); cmd_tbl->post_cmds = NULL; }
+       return 0;
+     }
+     if(!(DVDReadBytes(ifop->file, cmd_tbl->cell_cmds, cell_cmds_size))) {
+       if(cmd_tbl->pre_cmds)
+-        free(cmd_tbl->pre_cmds);
++        { free(cmd_tbl->pre_cmds); cmd_tbl->pre_cmds = NULL; }
+       if(cmd_tbl->post_cmds)
+-        free(cmd_tbl->post_cmds);
+-      free(cmd_tbl->cell_cmds);
++        { free(cmd_tbl->post_cmds); cmd_tbl->post_cmds = NULL; }
++      { free(cmd_tbl->cell_cmds); cmd_tbl->cell_cmds = NULL; }
+       return 0;
+     }
+   }
+@@ -2068,11 +2068,11 @@
+ static void ifoFree_PGC_COMMAND_TBL(pgc_command_tbl_t *cmd_tbl) {
+   if(cmd_tbl) {
+     if(cmd_tbl->nr_of_pre && cmd_tbl->pre_cmds)
+-      free(cmd_tbl->pre_cmds);
++      { free(cmd_tbl->pre_cmds); cmd_tbl->pre_cmds = NULL; }
+     if(cmd_tbl->nr_of_post && cmd_tbl->post_cmds)
+-      free(cmd_tbl->post_cmds);
++      { free(cmd_tbl->post_cmds); cmd_tbl->post_cmds = NULL; }
+     if(cmd_tbl->nr_of_cell && cmd_tbl->cell_cmds)
+-      free(cmd_tbl->cell_cmds);
++      { free(cmd_tbl->cell_cmds); cmd_tbl->cell_cmds = NULL; }
+     free(cmd_tbl);
+   }
+ }
+@@ -2298,6 +2298,19 @@
+ }
+ 
+ 
++/* Validate a table's on-disc last_byte: the body must not underflow (last_byte + 1
++ * wrapping to 0) and must fit inside the IFO file. */
++static int table_len_ok(ifo_handle_t *ifofile, uint32_t last_byte, size_t header) {
++  struct ifo_handle_private_s *ifop = PRIV(ifofile);
++  uint64_t end = (uint64_t)last_byte + 1;
++  ssize_t blocks = DVDFileSize(ifop->file);
++  if(end < header)
++    return 0;
++  if(blocks >= 0 && end - header > (uint64_t)blocks * DVD_BLOCK_LEN)
++    return 0;
++  return 1;
++}
++
+ int ifoRead_TT_SRPT(ifo_handle_t *ifofile) {
+   struct ifo_handle_private_s *ifop = PRIV(ifofile);
+   tt_srpt_t *tt_srpt;
+@@ -2325,6 +2338,7 @@
+   if(!(DVDReadBytes(ifop->file, tt_srpt, TT_SRPT_SIZE))) {
+     Log0(ifop->ctx, "Unable to read read TT_SRPT.");
+     free(tt_srpt);
++    ifofile->tt_srpt = NULL;
+     return 0;
+   }
+ 
+@@ -2335,6 +2349,12 @@
+   if(tt_srpt->last_byte == 0) {
+     tt_srpt->last_byte = tt_srpt->nr_of_srpts * sizeof(title_info_t) - 1 + TT_SRPT_SIZE;
+   }
++  if(!table_len_ok(ifofile, tt_srpt->last_byte, TT_SRPT_SIZE)) {
++    Log0(ifop->ctx, "Invalid TT_SRPT length.");
++    free(tt_srpt);
++    ifofile->tt_srpt = NULL;
++    return 0;
++  }
+   info_length = tt_srpt->last_byte + 1 - TT_SRPT_SIZE;
+ 
+   tt_srpt->title = calloc(1, info_length);
+@@ -2454,6 +2474,8 @@
+   if(vts_ptt_srpt->last_byte == 0) {
+     vts_ptt_srpt->last_byte  = vts_ptt_srpt->nr_of_srpts * sizeof(*data) - 1 + VTS_PTT_SRPT_SIZE;
+   }
++  if(!table_len_ok(ifofile, vts_ptt_srpt->last_byte, VTS_PTT_SRPT_SIZE))
++    goto fail;
+   info_length = vts_ptt_srpt->last_byte + 1 - VTS_PTT_SRPT_SIZE;
+   data = calloc(1, info_length);
+   if(!data)
+@@ -2521,6 +2543,12 @@
+       goto fail;
+     }
+     for(j = 0; j < vts_ptt_srpt->title[i].nr_of_ptts; j++) {
++      /* Offsets come from the disc: stop at the first entry outside the table. */
++      uint64_t off = (uint64_t)data[i] + 4 * (uint64_t)j;
++      if(off < VTS_PTT_SRPT_SIZE || off + sizeof(ptt_info_t) > (uint64_t)vts_ptt_srpt->last_byte + 1) {
++        vts_ptt_srpt->title[i].nr_of_ptts = j;
++        break;
++      }
+       /* The assert placed here because of Magic Knight Rayearth Daybreak */
+       CHECK_VALUE(data[i] + sizeof(ptt_info_t) <= vts_ptt_srpt->last_byte + 1);
+       vts_ptt_srpt->title[i].ptt[j].pgcn
+@@ -2920,7 +2948,7 @@
+   B2N_16(c_adt->nr_of_vobs);
+   B2N_32(c_adt->last_byte);
+ 
+-  if(c_adt->last_byte + 1 < C_ADT_SIZE)
++  if(!table_len_ok(ifofile, c_adt->last_byte, C_ADT_SIZE))
+     return 0;
+ 
+   info_length = c_adt->last_byte + 1 - C_ADT_SIZE;
+@@ -3059,6 +3087,8 @@
+ 
+   B2N_32(vobu_admap->last_byte);
+ 
++  if(!table_len_ok(ifofile, vobu_admap->last_byte, VOBU_ADMAP_SIZE))
++    return 0;
+   info_length = vobu_admap->last_byte + 1 - VOBU_ADMAP_SIZE;
+   /* assert(info_length > 0);
+      Magic Knight Rayearth Daybreak is mastered very strange and has
+@@ -3200,7 +3230,8 @@
+     int dup;
+     if((dup = find_dup_pgc(pgcit->pgci_srp, pgcit->pgci_srp[i].pgc_start_byte, i)) >= 0) {
+       pgcit->pgci_srp[i].pgc = pgcit->pgci_srp[dup].pgc;
+-      pgcit->pgci_srp[i].pgc->ref_count++;
++      if(pgcit->pgci_srp[i].pgc)
++        pgcit->pgci_srp[i].pgc->ref_count++;
+       continue;
+     }
+     pgcit->pgci_srp[i].pgc = calloc(1, sizeof(pgc_t));
+@@ -3217,7 +3248,7 @@
+                     offset + pgcit->pgci_srp[i].pgc_start_byte)) {
+       Log0(ifop->ctx, "Unable to read invalid PCG");
+       //E-One releases provide bogus PGC, ie: out of bound start_byte
+-      free(pgcit->pgci_srp[i].pgc);
++      ifoFree_PGC(pgcit->pgci_srp[i].pgc);
+       pgcit->pgci_srp[i].pgc = NULL;
+     }
+   }

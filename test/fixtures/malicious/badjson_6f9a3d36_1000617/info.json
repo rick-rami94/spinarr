@@ -1,0 +1,9 @@
+{
+ "i": 614,
+ "seed": 1000617,
+ "rc": 0,
+ "dt": 0.12938427925109863,
+ "status": "badjson",
+ "why": "Expecting value: line 1 column 66 (char 65)",
+ "stdout": "{\"volume\":\"\",\"titles\":[{\"title\":1,\"vts\":1,\"angles\":1,\"chapters\":[,9.601,10.200,9.968],\"duration\":29.768,\"bytes\":24231936,\"video\":{\"standard\":\"NTSC\",\"aspect\":\"16:9\",\"mpeg\":2},\"audio\":[{\"index\":0,\"codec\":\"AC3\",\"channels\":1,\"lang\":\"en\",\"commentary\":false},{\"index\":1,\"codec\":\"AC3\",\"channels\":1,\"lang\":\"es\",\"commentary\":false}],\"subtitles\":[]},{\"title\":2,\"vts\":1,\"angles\":1,\"chapters\":[12.000],\"duration\":12.000,\"bytes\":9824256,\"video\":{\"standard\":\"NTSC\",\"aspect\":\"16:9\",\"mpeg\":2},\"audio\":[{\"index\":0,\"codec\":\"AC3\",\"channels\":1,\"lang\":\"en\",\"commentary\":false},{\"index\":1,\"codec\":\"AC3\",\"channels\":1,\"lang\":\"es\",\"commentary\":false}],\"subtitles\":[]}]}\n"
+}

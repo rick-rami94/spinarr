@@ -1,0 +1,31 @@
+name: Bug report
+description: Something didn't rip, scan or look right
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "**Security problem?** Please use *Security → Report a vulnerability* instead (see SECURITY.md)."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what you saw.
+    validations:
+      required: true
+  - type: input
+    id: disc
+    attributes:
+      label: Disc
+      description: Title / region / any special features (multi-angle, seamless branching). No need to upload the disc.
+  - type: textarea
+    id: queue
+    attributes:
+      label: Error message
+      description: Copy the error from the queue panel, if any.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Spinarr version, macOS version, Intel or Apple Silicon
+    validations:
+      required: true

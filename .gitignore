@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+
+# engine build outputs and downloaded sources
+engine/bin/
+engine/deps/
+
+# generated test media and reports
+test/fixtures/out/
+test/reports/
+test/security/work/
+test/security/findings/
+test/tools/tsMuxer-*
+test/security/work-bd/
+test/security/findings-bd/
