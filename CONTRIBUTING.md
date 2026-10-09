@@ -21,6 +21,7 @@ npm start
 | `npm run test:engine` | Real scans and rips of the fixture DVDs, checked against the system ffmpeg as an independent oracle: losslessness, chapters, languages, track selection, broken discs (~1 min) |
 | `npm run test:e2e` | Drives the real app window through every user story and security requirement, one isolated app instance per scenario (~3 min). Screenshots land in `test/reports/screenshots/`. |
 | `npm run test:security` | Replays the malicious-disc corpus through `dvdinfo` |
+| `npm run screenshots` | Regenerates the README screenshots in `docs/screenshots/` (not a test; needs the fixtures) |
 | `npm test` | unit + engine + e2e |
 
 Every user-facing change should map to a story in [docs/USER_STORIES.md](docs/USER_STORIES.md) and come with a test.

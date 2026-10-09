@@ -517,6 +517,63 @@ Object.assign(module.exports, {
     },
   },
 
+  // Not a test: renders the README screenshots into docs/screenshots at 2x. `npm run screenshots`
+  docs_screenshots: {
+    docs: true,
+    stories: [],
+    env: { SPINARR_READRATE: '4' }, // slow enough to catch a rip mid-way
+    title: 'README screenshots',
+    async run(h) {
+      const fs = require('fs');
+      const { nativeTheme } = require('electron');
+      const dir = path.join(__dirname, '..', '..', 'docs', 'screenshots');
+      fs.mkdirSync(dir, { recursive: true });
+      const wc = h.win.webContents;
+      // 2x without a Retina display: a double-size window rendered at 200% zoom.
+      const disp = require('electron').screen.getPrimaryDisplay();
+      const scale = disp.scaleFactor >= 2 ? 1 : Math.min(2, Math.floor(((disp.workArea.height - 40) / 820) * 10) / 10);
+      h.win.setContentSize(1280 * scale, 820 * scale);
+      wc.setZoomFactor(scale);
+      wc.setBackgroundThrottling(false);
+      // Show a tidy output folder instead of the test's temp directory (display only).
+      const tidy = () => h.js(`state.settings = { ...state.settings, outputDir: '/Users/you/Movies/Spinarr' }; rerenderActionBar(); document.getElementById('toasts').innerHTML = ''; document.activeElement.blur(); 1`);
+      const snap = async (name) => {
+        await tidy();
+        await h.sleep(700);
+        wc.invalidate();
+        await h.sleep(300);
+        const img = await wc.capturePage();
+        h.note(`${name}: ${img.getSize().width}x${img.getSize().height}`);
+        fs.writeFileSync(path.join(dir, `${name}.png`), img.toPNG());
+      };
+      const rename = (n) => h.js(`(() => { const i = document.getElementById('discName'); i.value = ${JSON.stringify(n)}; i.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+
+      nativeTheme.themeSource = 'dark';
+      await h.js(`state.disc = null; state.error = null; renderMain(); 1`);
+      await snap('empty');
+
+      await h.load(h.fx('bd_movie.iso'));
+      await rename('Northern Lights');
+      await h.click('[data-expand="1"]');
+      await h.waitFor('state.probes.get(1) && state.probes.get(1).data');
+      await snap('disc');
+
+      nativeTheme.themeSource = 'light';
+      await snap('disc-light');
+      nativeTheme.themeSource = 'dark';
+
+      await h.load(h.fx('feature_disc.iso'));
+      await rename('Northern Lights — Bonus Disc');
+      await h.click('[data-toggle="showShort"]');
+      await h.click('[data-select="1"]');
+      await h.click('[data-select="4"]');
+      await h.click('[data-action="rip"]');
+      await h.waitFor('state.queue[1] && state.queue[1].state === "ripping" && state.queue[1].progress > 0.45', { timeout: 120000 });
+      await snap('ripping');
+      await h.js('Promise.all(state.queue.map(j => spinarr.cancel(j.id))).then(() => 1)');
+    },
+  },
+
   ux_light_theme: {
     stories: ['US-24'],
     title: 'Light appearance renders correctly (visual check)',

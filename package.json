@@ -14,7 +14,8 @@
     "test:security": "node --test 'test/security/*.test.js'",
     "test:e2e": "node test/e2e/run.js",
     "test": "npm run test:unit && npm run test:security && npm run test:engine && npm run test:e2e",
-    "fixtures:bluray": "sh test/fixtures/make-bluray.sh"
+    "fixtures:bluray": "sh test/fixtures/make-bluray.sh",
+    "screenshots": "node test/e2e/run.js docs_screenshots"
   },
   "devDependencies": {
     "electron": "^44.7.0"

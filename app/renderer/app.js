@@ -295,6 +295,7 @@ const JOB_ICON = {
   cancelled: `<span class="job-ico" style="color:var(--text-3)">${ICON.slash}</span>`,
 };
 
+const seenJobs = new Set(); // only newly added jobs animate in; the list re-renders every 250 ms
 function renderQueue() {
   const list = $('#queueList');
   const active = state.queue.filter((j) => ['queued', 'ripping'].includes(j.state)).length;
@@ -318,13 +319,14 @@ function renderQueue() {
       : j.state === 'done' ? `<button class="icon-btn" data-reveal="${esc(j.id)}" title="Show in Finder" aria-label="Show ${esc(j.fileName)} in Finder">${ICON.reveal}</button>` : '';
     const ico = j.state === 'ripping' ? `<span class="job-ico">${ring(j.progress)}</span>` : JOB_ICON[j.state] || '';
     return `
-      <div class="job ${j.state}">
+      <div class="job ${j.state}${seenJobs.has(j.id) ? '' : ' enter'}">
         <div class="job-top">${ico}<div class="job-name" title="${esc(j.fileName)}">${esc(j.fileName)}</div>${btn}</div>
         <div class="bar"><div style="width:${j.progress * 100}%"></div></div>
         <div class="job-state"><span>${status}</span><span>${right}</span></div>
         ${j.error ? `<div class="job-err">${esc(j.error)}</div>` : ''}
       </div>`;
   }).join('');
+  for (const j of state.queue) seenJobs.add(j.id);
 }
 
 // ---------- toasts ----------

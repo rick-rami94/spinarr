@@ -12,7 +12,8 @@ const ELECTRON = require(path.join(ROOT, 'node_modules', 'electron'));
 const REPORT_DIR = process.env.E2E_REPORT || path.join(ROOT, 'test', 'reports');
 const SHOTS = path.join(REPORT_DIR, 'screenshots');
 const only = process.argv.slice(2);
-const names = Object.keys(scenarios).filter((n) => typeof scenarios[n] === 'object' && (!only.length || only.includes(n)));
+// Scenarios marked `docs` (README screenshots) only run when named explicitly.
+const names = Object.keys(scenarios).filter((n) => typeof scenarios[n] === 'object' && (only.length ? only.includes(n) : !scenarios[n].docs));
 
 function launch(name, i, env) {
   return new Promise((resolve) => {

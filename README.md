@@ -4,6 +4,10 @@
 
 Spinarr copies titles **losslessly**. You get the original MPEG-2 video, every audio track (AC3, DTS, LPCM, MPEG), VobSub subtitles, chapters and language tags, remuxed into MKV with no re-encoding. The test suite proves it: decoded video is bit-identical to the source, and every audio packet survives byte for byte.
 
+<p align="center">
+  <img src="docs/screenshots/disc.png" alt="Spinarr showing a Blu-ray's main feature with its audio and subtitle tracks expanded" width="900">
+</p>
+
 ## Features
 
 - **Finds discs on its own.** Inserted discs are detected automatically. You can also open, or drag in, an ISO, a disc folder or a `VIDEO_TS` folder.
@@ -13,6 +17,18 @@ Spinarr copies titles **losslessly**. You get the original MPEG-2 video, every a
 - **Honest failures.** A scratched or unreadable disc fails with a clear message instead of a silently truncated file.
 - **Light and dark mode.**
 - **Blu-ray (early).** Playlists, chapters and track languages; lossless rips (Blu-ray LPCM → FLAC, everything else copied). Unencrypted discs work today. For AACS discs, install `libaacs` and supply your own `KEYDB.cfg`: Spinarr never ships or downloads keys. BD+ and 4K UHD aren't supported. Tested on generated discs; real-drive testing is pending.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/ripping.png" alt="A rip in progress: one title done, the main feature at 48%, one waiting"><br><sub><b>Ripping.</b> Live progress on each title card and in the Rips list.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/empty.png" alt="The start screen with a large disc and an Open image or folder button"><br><sub><b>Start screen.</b> Insert a disc, or open or drop an image or folder.</sub></td>
+    <td width="50%"><img src="docs/screenshots/disc-light.png" alt="The disc view in light mode"><br><sub><b>Light mode.</b> Follows your system appearance.</sub></td>
+  </tr>
+</table>
 
 ## Keyboard
 

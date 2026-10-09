@@ -268,8 +268,8 @@ kbd {
 .job {
   padding: 10px 10px 10px 10px; border-radius: 11px; margin-bottom: 6px;
   background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-card);
-  animation: rise 0.35s var(--ease) both;
 }
+.job.enter { animation: rise 0.35s var(--ease) both; }
 .job-top { display: flex; align-items: flex-start; gap: 9px; }
 .job-ico { width: 18px; height: 18px; flex: none; display: grid; place-items: center; }
 .job-ico svg { width: 18px; height: 18px; }
@@ -424,6 +424,7 @@ kbd {
 .badge.dup { background: var(--surface-3); color: var(--text-2); }
 .badge.fmt { background: var(--surface-3); color: var(--text); }
 .badge.fmt.bd { background: rgba(110, 120, 255, 0.16); color: #a9b0ff; }
+@media (prefers-color-scheme: light) { .badge.fmt.bd { background: rgba(90, 100, 230, 0.12); color: #4b52c4; } }
 .badge.live { background: var(--accent-soft); color: var(--accent-text); display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .badge.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 .badge.ripped { background: var(--ok-soft); color: var(--ok); }
