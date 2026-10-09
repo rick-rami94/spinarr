@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, session, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, session, protocol, net, nativeTheme } = require('electron');
 const { spawn, execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -52,7 +52,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1240, height: 820, minWidth: 900, minHeight: 600,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#0e0f13',
+    trafficLightPosition: { x: 18, y: 18 },
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0c0e' : '#f6f6f4',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -272,8 +273,15 @@ function enqueue(jobs) {
   pump();
 }
 
-const publicJob = ({ proc, source, ...j }) => j;
-function broadcastQueue() { send('queue', queue.map(publicJob)); }
+const publicJob = ({ proc, ...j }) => j;
+function broadcastQueue() {
+  send('queue', queue.map(publicJob));
+  // Dock icon: progress of the current rip, and a badge with how many titles are left.
+  if (!win || win.isDestroyed()) return;
+  const left = queue.filter((j) => j.state === 'queued' || j.state === 'ripping').length;
+  win.setProgressBar(active && active.state === 'ripping' ? Math.max(0.01, active.progress || 0) : -1);
+  app.dock?.setBadge(left ? String(left) : '');
+}
 
 function pump() {
   if (active) return;

@@ -7,55 +7,87 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="titlebar">
-    <div class="brand"><span class="logo"></span>Spinarr</div>
-    <div class="titlebar-actions">
-      <button class="icon-btn" id="settingsBtn" title="Settings">
-        <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-      </button>
-    </div>
-  </header>
+  <div class="app">
+    <aside class="sidebar" aria-label="Sources and rips">
+      <div class="chrome"></div>
+      <div class="side-scroll">
+        <section class="side-section">
+          <h2 class="section-label">Discs</h2>
+          <div id="sources" role="list"></div>
+          <button class="side-btn" id="openBtn">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Open image or folder…</span>
+            <kbd>⌘O</kbd>
+          </button>
+        </section>
 
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="section-label">Sources</div>
-      <div id="sources"></div>
-      <button class="ghost-btn wide" id="openBtn">
-        <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
-        Open image or folder…
-      </button>
-      <p class="hint">Or drop an ISO, VIDEO_TS or BDMV folder anywhere.</p>
-    </aside>
-
-    <main class="main" id="main"></main>
-
-    <aside class="queue">
-      <div class="queue-head">
-        <div class="section-label">Queue</div>
-        <button class="link-btn" id="clearBtn" hidden>Clear finished</button>
+        <section class="side-section queue">
+          <div class="queue-head">
+            <h2 class="section-label">Rips <span class="count" id="queueCount"></span></h2>
+            <button class="link-btn" id="clearBtn" hidden>Clear finished</button>
+          </div>
+          <div id="queueList" aria-live="polite"></div>
+        </section>
       </div>
-      <div id="queueList"></div>
+
+      <footer class="side-foot">
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4"/><path class="mark-arc" d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8"/></svg>
+        <span class="wordmark">Spinarr</span>
+        <span class="tagline">Lossless · Open source</span>
+      </footer>
     </aside>
+
+    <div class="stage">
+      <div class="chrome stage-chrome">
+        <button class="icon-btn" id="settingsBtn" title="Settings (⌘,)" aria-label="Settings">
+          <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        </button>
+      </div>
+      <main class="main" id="main"></main>
+    </div>
   </div>
 
-  <div class="drop-overlay" id="dropOverlay"><div>Drop to scan</div></div>
+  <div class="drop-overlay" id="dropOverlay" aria-hidden="true">
+    <div class="drop-card">
+      <div class="disc drop-disc"></div>
+      <div class="drop-title">Drop to scan</div>
+      <div class="drop-sub">ISO image · VIDEO_TS · BDMV folder</div>
+    </div>
+  </div>
 
-  <dialog id="settingsDlg">
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <dialog id="settingsDlg" aria-labelledby="settingsTitle">
     <form method="dialog" class="settings">
-      <h2>Settings</h2>
-      <label class="field">
-        <span>Output folder</span>
-        <div class="row"><input id="setOutput" readonly /><button type="button" class="ghost-btn" id="setOutputBtn">Change…</button></div>
-      </label>
-      <label class="field">
-        <span>Hide titles shorter than</span>
-        <div class="row"><input id="setMin" type="number" min="0" max="60" /> <em>minutes</em></div>
-      </label>
-      <label class="check">
-        <input type="checkbox" id="setChapters" />
-        <span><b>Accurate chapter markers</b><br /><small>Reads the disc twice, so rips take about twice as long. Chapters are already accurate to a fraction of a second without it.</small></span>
-      </label>
-      <div class="dlg-actions"><button class="primary-btn" value="ok">Done</button></div>
+      <header class="dlg-head">
+        <h2 id="settingsTitle">Settings</h2>
+        <p>Applies to every disc you rip.</p>
+      </header>
+
+      <div class="group">
+        <div class="group-row">
+          <div class="gr-text"><b>Output folder</b><output id="setOutput" class="path-readout"></output></div>
+          <button type="button" class="ghost-btn" id="setOutputBtn">Change…</button>
+        </div>
+        <div class="group-row">
+          <div class="gr-text"><b>Hide short titles</b><small>Menus, trailers and logos usually run under a few minutes.</small></div>
+          <div class="stepper">
+            <button type="button" data-step="-1" aria-label="Fewer minutes">−</button>
+            <input id="setMin" type="number" min="0" max="60" aria-label="Minimum minutes" />
+            <span class="unit">min</span>
+            <button type="button" data-step="1" aria-label="More minutes">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="group-row switch-row">
+          <div class="gr-text"><b>Accurate chapter markers</b><small>Reads the disc twice, so rips take about twice as long. Chapters are already accurate to a fraction of a second without it.</small></div>
+          <input type="checkbox" class="switch" id="setChapters" />
+        </label>
+      </div>
+
+      <div class="dlg-actions"><button class="primary-btn" value="ok" autofocus>Done</button></div>
     </form>
   </dialog>
 

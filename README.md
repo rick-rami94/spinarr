@@ -14,6 +14,18 @@ Spinarr copies titles **losslessly**. You get the original MPEG-2 video, every a
 - **Light and dark mode.**
 - **Blu-ray (early).** Playlists, chapters and track languages; lossless rips (Blu-ray LPCM → FLAC, everything else copied). Unencrypted discs work today. For AACS discs, install `libaacs` and supply your own `KEYDB.cfg`: Spinarr never ships or downloads keys. BD+ and 4K UHD aren't supported. Tested on generated discs; real-drive testing is pending.
 
+## Keyboard
+
+| Keys | Action |
+| --- | --- |
+| ⌘O | Open an image or folder |
+| ⌘↩ | Rip the selected titles |
+| ⌘A | Select or deselect every visible title |
+| ↑ ↓ | Move between titles |
+| Space | Select the focused title |
+| ↩ / → / ← | Expand or collapse the focused title's tracks |
+| ⌘, | Settings |
+
 ## Security
 
 A DVD is untrusted input parsed by C code, so Spinarr treats it that way:

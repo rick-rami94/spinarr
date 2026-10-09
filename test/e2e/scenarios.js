@@ -467,6 +467,56 @@ Object.assign(module.exports, {
     },
   },
 
+  ux_keyboard: {
+    stories: ['US-28'],
+    title: 'Keyboard: move, select, expand, select all, rip and settings; title cards show rip status',
+    async run(h) {
+      const wc = h.win.webContents;
+      const key = async (keyCode, modifiers = []) => {
+        wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+        wc.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+        await h.sleep(120);
+      };
+      const focused = () => h.js('document.activeElement.dataset.expand || null');
+      const selected = () => h.js('[...state.selected].sort((a, b) => a - b)');
+      await h.load(h.fx('feature_disc.iso'));
+      await h.click('[data-toggle="showShort"]'); // titles 1, 2, 4 visible; 2 (main) selected
+      await h.js('document.activeElement.blur(); 1');
+
+      await key('Down');
+      h.assert.equal(await focused(), '1', 'first arrow focuses the first title');
+      await key('Space');
+      h.assert.deepEqual(await selected(), [1, 2]);
+      await key('Down'); await key('Down');
+      h.assert.equal(await focused(), '4');
+      await key('Right');
+      h.assert.equal(await h.js('state.open.has(4)'), true, '→ expands');
+      await key('Left');
+      h.assert.equal(await h.js('state.open.has(4)'), false, '← collapses');
+
+      await key('A', ['meta']);
+      h.assert.deepEqual(await selected(), [1, 2, 4], '⌘A selects every visible title');
+      await key('A', ['meta']);
+      h.assert.deepEqual(await selected(), [], '⌘A again clears');
+      h.assert.equal(await h.js(`document.querySelector('[data-action="rip"]').disabled`), true);
+
+      await key('Space'); // focus is still on title 4
+      await key('Return', ['meta']);
+      await h.waitFor('state.queue.length === 1', { what: '⌘↩ to queue a rip' });
+      h.assert.equal(await h.js('state.queue[0].title'), 4);
+      await h.idle();
+      await h.waitFor(`document.querySelector('[data-title="4"] .rip-state').textContent === 'Ripped'`, { what: 'card shows Ripped' });
+      h.assert.equal(await h.js(`document.querySelector('[data-title="4"]').classList.contains('ripped')`), true);
+      h.assert.equal(await h.js(`document.querySelector('[data-title="2"] .rip-state').textContent`), '', 'only the ripped title is marked');
+      await h.shot('ripped');
+
+      await key(',', ['meta']);
+      h.assert.equal(await h.js(`document.getElementById('settingsDlg').open`), true, '⌘, opens Settings');
+      await key('Escape');
+      await h.waitFor(`!document.getElementById('settingsDlg').open`, { what: 'Escape closes Settings' });
+    },
+  },
+
   ux_light_theme: {
     stories: ['US-24'],
     title: 'Light appearance renders correctly (visual check)',

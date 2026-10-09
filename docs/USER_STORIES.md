@@ -64,6 +64,7 @@ Each story has acceptance criteria and the automated tests that prove it.
 | US-25 | As a **collector**, I can open a Blu-ray folder, ISO or disc and see its playlists. | Playlists show length, chapters, resolution and codec (e.g. 1080p · H.264 · 16:9), and audio/subtitle languages. The longest unique playlist is the main feature; duplicate and short playlists are hidden. | engine:`bdinfo: playlists…`, `bdinfo + analyzeTitles…`; e2e:`us_bluray_rip` |
 | US-26 | As an **archivist**, a Blu-ray rip is lossless and complete. | Video and audio decode identically to the source. Blu-ray LPCM becomes FLAC (lossless, since MKV can't hold LPCM), TrueHD and DTS-HD are copied. Playlist chapters and track languages are applied. Short bonus playlists rip too. The finished file's video duration is verified. | engine:`Blu-ray rip is lossless…`, `…chapters, languages and title`, `…4-second bonus playlist…`, `completeness check…`; e2e:`us_bluray_rip` |
 | US-27 | As a **casual user**, an encrypted Blu-ray tells me what's missing instead of failing. | An AACS disc without libaacs or a matching key shows a clear banner and Rip is disabled. A BD+ disc says it isn't supported. | engine:`bdinfo: an AACS disc…`; e2e:`us_bluray_encrypted` |
+| US-28 | As a **power user**, I can drive the app from the keyboard. | ↑↓ move between titles, Space selects, →/← expand and collapse, ⌘A selects every visible title (again to clear), ⌘↩ rips, ⌘, opens Settings. Each title card shows live rip status (Waiting, percent, Ripped). | e2e:`ux_keyboard` |
 
 ## Security requirements
 
