@@ -99,7 +99,18 @@ jobs:
           name: e2e-report-linux
           path: test/reports/
 
+      # Windows can't author DVDs, so its end-to-end run uses these discs. Names with
+      # characters Windows forbids (the XSS fixtures) are left out.
+      - name: Share the generated test discs with the Windows job
+        run: tar czf fixtures.tgz -C test/fixtures/out --exclude='*[<>"]*' --exclude=src --exclude=bdsrc .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fixtures
+          path: fixtures.tgz
+          retention-days: 1
+
   windows:
+    needs: linux # uses the test discs the Linux job generates
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -141,6 +152,23 @@ jobs:
           engine/bin/ffmpeg.exe -hide_banner -version | head -1
           out=$(engine/bin/dvdinfo.exe "C:/no/such/disc" || true); echo "$out"; echo "$out" | grep -q '"error"'
           out=$(engine/bin/bdinfo.exe "C:/no/such/disc" || true); echo "$out"; echo "$out" | grep -q '"error"'
+      - uses: actions/download-artifact@v4
+        with:
+          name: fixtures
+      - name: Unpack test discs
+        shell: bash
+        run: mkdir -p test/fixtures/out && tar xzf fixtures.tgz -C test/fixtures/out && ls test/fixtures/out
+      - name: End-to-end (drives the real app; no engine sandbox on Windows)
+        env:
+          ORACLE_FFMPEG_DIR: ${{ github.workspace }}\engine\bin
+        run: npm run test:e2e
+      - name: Upload e2e report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-windows
+          path: test/reports/
+
       - name: Package (unpacked) to check the installer config
         run: npx electron-builder --win --dir --publish never
 
