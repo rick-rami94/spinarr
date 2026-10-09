@@ -721,3 +721,127 @@ dialog::backdrop { background: var(--scrim); backdrop-filter: blur(6px); animati
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
+
+/* ==========================================================================
+   Segmented control (Settings → Appearance), shared by every skin
+   ========================================================================== */
+.seg { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface-2); }
+.seg label { position: relative; padding: 6px 14px; font-weight: 550; color: var(--text-2); }
+.seg label + label { border-left: 1px solid var(--line); }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+.seg label:has(input:checked) { background: var(--accent-soft); color: var(--text); }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent-text); outline-offset: -2px; }
+
+/* ==========================================================================
+   Skin: Pinstripe (2001). Light-era look, so it stays light in dark mode.
+   ========================================================================== */
+:root[data-skin="pinstripe"] {
+  --bg: #ececec; --sidebar: #e1e6ee; --surface: #ffffff; --surface-2: #f3f3f3; --surface-3: #e4e4e4;
+  --hairline: rgba(0, 0, 0, 0.12); --line: #b5b5b5; --line-strong: #8c8c8c;
+  --text: #000000; --text-2: #3a3a3a; --text-3: #616161;
+  --accent: #3d84e0; --accent-hi: #7fb2f2; --accent-ink: #000000; --accent-text: #1f5fbf;
+  --accent-soft: rgba(61, 132, 224, 0.14); --accent-line: rgba(31, 95, 191, 0.6);
+  --ok: #2e8a22; --bad: #c62a24;
+  --font: "Lucida Grande", "Lucida Sans Unicode", Verdana, sans-serif;
+  --display: "Lucida Grande", "Lucida Sans Unicode", Verdana, sans-serif;
+  --gel: linear-gradient(#d4e8ff, #8bbaf3 50%, #3d84e0 51%, #a6d0ff);
+  --capsule: linear-gradient(#ffffff, #ececec 50%, #dcdcdc 51%, #f6f6f6);
+  --barber: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.42) 0 6px, transparent 6px 12px);
+  --pin: repeating-linear-gradient(180deg, #ececec 0 2px, #f7f7f7 2px 4px);
+  color-scheme: light;
+}
+[data-skin="pinstripe"] body { background: #ececec; letter-spacing: 0; }
+[data-skin="pinstripe"] .stage { background: var(--pin); }
+
+/* brushed toolbar across the whole window, window title centred like the era */
+[data-skin="pinstripe"] .chrome { background: linear-gradient(#ebebeb, #cbcbcb); border-bottom: 1px solid #8c8c8c; box-shadow: inset 0 1px 0 #fff; }
+[data-skin="pinstripe"] .stage-chrome::before { content: "Spinarr"; position: absolute; left: 0; right: 0; text-align: center; font-weight: bold; font-size: 13px; color: #222; text-shadow: 0 1px 0 #fff; pointer-events: none; }
+[data-skin="pinstripe"] .sidebar { border-right: 1px solid #a3a9b4; }
+
+/* source list */
+[data-skin="pinstripe"] .side-scroll { padding: 10px 0 12px; }
+[data-skin="pinstripe"] .section-label { color: #5a6a82; font-size: 11px; font-weight: bold; padding: 4px 14px 4px; }
+[data-skin="pinstripe"] .source { border-radius: 0; margin: 0; padding: 5px 14px; }
+[data-skin="pinstripe"] .source:hover { background: rgba(61, 132, 224, 0.1); }
+[data-skin="pinstripe"] .source.active { background: linear-gradient(#6fa1e3, #3a72c8); color: #fff; }
+[data-skin="pinstripe"] .source.active::before { display: none; }
+[data-skin="pinstripe"] .source.active .sub { color: rgba(255, 255, 255, 0.88); }
+[data-skin="pinstripe"] .side-btn { border-radius: 0; padding: 6px 14px; margin: 4px 0 0; }
+[data-skin="pinstripe"] .no-drive { margin: 2px 12px; border-radius: 6px; }
+[data-skin="pinstripe"] .side-foot { background: linear-gradient(#e6e9ef, #d3d8e1); border-top: 1px solid #a3a9b4; }
+[data-skin="pinstripe"] .wordmark { font-weight: bold; font-size: 13px; }
+[data-skin="pinstripe"] .queue-head .link-btn { padding: 0 14px 4px; }
+[data-skin="pinstripe"] #queueList, [data-skin="pinstripe"] .q-empty { padding: 0 12px; }
+[data-skin="pinstripe"] .job { border-radius: 6px; border: 1px solid #c2c7d0; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06); }
+
+/* progress: barber poles */
+[data-skin="pinstripe"] .job .bar, [data-skin="pinstripe"] .cap-bar { height: 10px; border-radius: 5px; background: linear-gradient(#d8d8d8, #f4f4f4); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4); }
+[data-skin="pinstripe"] .job .bar div, [data-skin="pinstripe"] .cap-bar div { border-radius: 5px; background: var(--barber), var(--gel); animation: none; }
+[data-skin="pinstripe"] .job.ripping .bar div { background-size: 17px 17px, 100% 100%; animation: barber 0.8s linear infinite; }
+@keyframes barber { to { background-position: 17px 0, 0 0; } }
+
+/* header */
+[data-skin="pinstripe"] .disc-head { padding-top: 76px; }
+[data-skin="pinstripe"] .disc-head::before { display: none; }
+[data-skin="pinstripe"] .disc-title input { font-weight: bold; font-size: 30px; font-stretch: normal; letter-spacing: -0.01em; text-shadow: 0 1px 0 #fff; }
+[data-skin="pinstripe"] .disc-title input.long { font-size: 24px; }
+[data-skin="pinstripe"] .disc-meta .vol { font: bold 11px var(--font); letter-spacing: 0; background: #fff; border-color: #c4c4c4; }
+[data-skin="pinstripe"] .hero-stats .v, [data-skin="pinstripe"] .t-dur .time { font-weight: bold; font-stretch: normal; font-size: 18px; }
+[data-skin="pinstripe"] .r-pct { font-weight: bold; font-stretch: normal; font-size: 40px; color: var(--accent-text); text-shadow: 0 1px 0 #fff; }
+[data-skin="pinstripe"] .disc-read { background: radial-gradient(circle closest-side, transparent 0 31%,
+    rgba(61, 132, 224, 0.42) 31% calc(31% + var(--read) * 66%), #ffffff calc(31% + var(--read) * 66%) calc(32% + var(--read) * 66%),
+    rgba(127, 178, 242, 0.75) calc(32% + var(--read) * 66%) calc(33.2% + var(--read) * 66%), rgba(0, 0, 0, 0.18) calc(33.2% + var(--read) * 66%) 97%, transparent 97.5%); }
+[data-skin="pinstripe"] .badge { border-radius: 999px; font-weight: bold; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.12); }
+[data-skin="pinstripe"] .badge.feat, [data-skin="pinstripe"] .badge.live { background: linear-gradient(#eaf3ff, #bcd7fb); color: #0b3b8c; }
+[data-skin="pinstripe"] .badge.live::before { background: #1f5fbf; }
+[data-skin="pinstripe"] .badge.ripped { background: linear-gradient(#ecfbe6, #bfe9ae); color: #1d5e12; }
+[data-skin="pinstripe"] .badge.fmt { background: linear-gradient(#fafafa, #dedede); color: #222; }
+
+/* list header bar and capsule toggles */
+[data-skin="pinstripe"] .toolbar { background: linear-gradient(#fafafa, #e3e3e3); border-bottom: 1px solid #b5b5b5; border-top: 1px solid #fff; backdrop-filter: none; }
+[data-skin="pinstripe"] .pill { border: 1px solid #8c8c8c; background: var(--capsule); color: #000; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15); }
+[data-skin="pinstripe"] .pill .pip { display: none; }
+[data-skin="pinstripe"] .pill:has(input:checked) { background: var(--gel); border-color: #1d4f9e; color: #000; }
+
+/* title rows: list rows */
+[data-skin="pinstripe"] .titles { gap: 6px; padding-top: 10px; }
+[data-skin="pinstripe"] .title-row { border-radius: 6px; border: 1px solid #b5b5b5; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+[data-skin="pinstripe"] .title-row.selected { background: #f1f6ff; border-color: #5b8fd6; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+[data-skin="pinstripe"] .title-main, [data-skin="pinstripe"] .title-main:focus-visible { border-radius: 6px; }
+[data-skin="pinstripe"] .timeline { height: 8px; border-radius: 4px; background: linear-gradient(#d4d4d4, #f0f0f0); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+[data-skin="pinstripe"] .timeline .fill { background: linear-gradient(#e3e3e3, #b9b9b9); border-radius: 4px; }
+[data-skin="pinstripe"] .selected .timeline .fill { background: var(--gel); }
+[data-skin="pinstripe"] .ripping .timeline .prog { background: var(--barber), linear-gradient(#ffffff, #dbe9ff); background-size: 17px 17px, 100% 100%; animation: barber 0.8s linear infinite; }
+[data-skin="pinstripe"] .ripped .timeline .fill { background: linear-gradient(#c9f0b8, #5cb84a 50%, #3f9a2f 51%, #8fdc7a); }
+[data-skin="pinstripe"] .timeline .tick { background: rgba(255, 255, 255, 0.85); }
+[data-skin="pinstripe"] .chip { border-radius: 4px; background: #f6f6f6; border-color: #c4c4c4; color: #333; }
+[data-skin="pinstripe"] .chip b { color: #000; }
+[data-skin="pinstripe"] .cbox, [data-skin="pinstripe"] .check { border-radius: 4px; border: 1px solid #7d7d7d; background: linear-gradient(#ffffff, #e2e2e2); }
+[data-skin="pinstripe"] .selected .cbox, [data-skin="pinstripe"] .check:checked { background: var(--gel); border-color: #1d4f9e; }
+[data-skin="pinstripe"] .t-detail { background: var(--pin); border-top-color: #c4c4c4; }
+[data-skin="pinstripe"] .file-field .ff { border-radius: 4px; background: #fff; border-color: #8c8c8c; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2); }
+
+/* buttons: gel and capsule; the default button breathes like 2001's */
+[data-skin="pinstripe"] .primary-btn { background: var(--gel); color: #000; border: 1px solid #1d4f9e; border-radius: 999px; height: 32px; padding: 0 22px; font-weight: bold;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55); box-shadow: 0 1px 3px rgba(0, 40, 120, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.85); animation: gel-pulse 1.8s ease-in-out infinite alternate; }
+[data-skin="pinstripe"] .primary-btn:disabled { background: var(--capsule); border-color: #a5a5a5; color: #8a8a8a; box-shadow: none; animation: none; }
+[data-skin="pinstripe"] .primary-btn kbd { background: rgba(255, 255, 255, 0.45); color: #0b2a5c; }
+@keyframes gel-pulse { from { filter: brightness(1); } to { filter: brightness(1.12) saturate(1.1); } }
+[data-skin="pinstripe"] .ghost-btn { background: var(--capsule); border: 1px solid #8c8c8c; border-radius: 999px; color: #000; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15); }
+[data-skin="pinstripe"] .icon-btn:hover { background: rgba(0, 0, 0, 0.08); }
+
+/* metal dock along the window's bottom */
+[data-skin="pinstripe"] .actionbar { left: 0; right: 0; bottom: 0; border-radius: 0; padding: 8px 16px; background: linear-gradient(#e4e4e4, #bebebe); backdrop-filter: none; border-top: 1px solid #8c8c8c; box-shadow: inset 0 1px 0 #fff; animation: none; }
+[data-skin="pinstripe"] .dest { border-radius: 6px; }
+[data-skin="pinstripe"] .dest-ico { background: linear-gradient(#bcd6f5, #5d8fd4); color: #fff; border-radius: 6px; }
+[data-skin="pinstripe"] .scroll { padding-bottom: 90px; }
+
+/* sheets, toasts, empty state */
+[data-skin="pinstripe"] dialog { background: var(--pin); border: 1px solid #8c8c8c; border-radius: 10px; }
+[data-skin="pinstripe"] .group { border-radius: 6px; border-color: #b5b5b5; box-shadow: none; }
+[data-skin="pinstripe"] .switch:checked { background: var(--gel); }
+[data-skin="pinstripe"] .seg { border-radius: 999px; border-color: #8c8c8c; background: var(--capsule); }
+[data-skin="pinstripe"] .seg label:has(input:checked) { background: var(--gel); color: #000; }
+[data-skin="pinstripe"] .toast { background: rgba(255, 255, 255, 0.96); border: 1px solid #8c8c8c; border-radius: 8px; }
+[data-skin="pinstripe"] .empty h1 { font-weight: bold; font-stretch: normal; font-size: 28px; text-shadow: 0 1px 0 #fff; }
+[data-skin="pinstripe"] .error-box { border-radius: 6px; background: #fff4f3; }

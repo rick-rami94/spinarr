@@ -585,6 +585,30 @@ Object.assign(module.exports, {
     },
   },
 
+  ux_pinstripe_skin: {
+    stories: ['US-30'],
+    title: 'Appearance: the Pinstripe skin applies at once, persists, and stays readable mid-rip',
+    env: { SPINARR_READRATE: '4' },
+    async run(h) {
+      await h.load(h.fx('feature_disc.iso'));
+      await h.click('#settingsBtn');
+      await h.click('#skinPinstripe');
+      h.assert.equal(await h.js('document.documentElement.dataset.skin'), 'pinstripe', 'previews at once');
+      await h.shot('settings');
+      await h.click('#settingsDlg button[value="ok"]');
+      await h.waitFor('state.settings.skin === "pinstripe"', { what: 'skin saved' });
+      h.assert.equal((await h.js(`getComputedStyle(document.documentElement).getPropertyValue('--accent')`)).trim(), '#3d84e0');
+      await h.click('[data-toggle="showShort"]');
+      await h.click('[data-select="4"]');
+      await h.click('[data-action="rip"]');
+      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.3', { timeout: 90000 });
+      h.assert.equal(await h.js(`document.querySelector('.disc-head').classList.contains('ripping')`), true);
+      await h.js(`document.getElementById('toasts').innerHTML = ''; 1`);
+      await h.shot('ripping');
+      await h.js('Promise.all(state.queue.map(j => spinarr.cancel(j.id))).then(() => 1)');
+    },
+  },
+
   ux_light_theme: {
     stories: ['US-24'],
     title: 'Light appearance renders correctly (visual check)',

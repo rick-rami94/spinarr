@@ -41,3 +41,11 @@ A running journal for Spinarr's interface, so each design pass builds on the las
 - **Next time:**
   - The title cards could echo the disc, for example a small read ring instead of the bar for the active title.
   - The empty state could show a disc tray sliding in.
+
+## 2026-10-09 · Pinstripe skin
+- **Built:** a selectable skin (Settings → Appearance), from the UI directions canvas. It lives under `[data-skin="pinstripe"]`, so Studio is untouched.
+- **Kept:**
+  - Lucida Grande, a brushed toolbar with a centred title and a blue source-list selection.
+  - Gel capsules, with the default button breathing.
+  - Barber-pole progress, a blue disc read band and a metal dock.
+  - It stays light in dark mode, because that's true to the era.

@@ -156,6 +156,8 @@ test('validateJob sanitizes names and rejects malformed input', () => {
 test('sanitizeSettingsPatch only lets known, typed keys through', () => {
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: 5, accurateChapters: false }), { minMinutes: 5, accurateChapters: false });
   assert.deepEqual(lib.sanitizeSettingsPatch({ outputDir: '/etc', __proto__: { x: 1 }, evil: 1 }), {});
+  assert.deepEqual(lib.sanitizeSettingsPatch({ skin: 'pinstripe' }), { skin: 'pinstripe' });
+  assert.deepEqual(lib.sanitizeSettingsPatch({ skin: '../../evil' }), {});
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: 9999 }), { minMinutes: 60 });
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: -3 }), { minMinutes: 0 });
   assert.deepEqual(lib.sanitizeSettingsPatch({ minMinutes: '5', accurateChapters: 1 }), {});

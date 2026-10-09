@@ -282,6 +282,7 @@ function validateJob(j, opts) {
 const SETTINGS_SCHEMA = {
   minMinutes: (v) => (Number.isFinite(v) ? Math.min(60, Math.max(0, Math.round(v))) : undefined),
   accurateChapters: (v) => (typeof v === 'boolean' ? v : undefined),
+  skin: (v) => (['studio', 'pinstripe'].includes(v) ? v : undefined),
 };
 
 // outputDir is deliberately absent: it can only change through the native folder picker.

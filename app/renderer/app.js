@@ -535,8 +535,12 @@ async function startRip() {
 
 async function openPicker(kind = IS_MAC ? 'any' : 'file') { const p = await spinarr.pickSource(kind); if (p) loadSource(p); }
 
+// Skins restyle the same markup through tokens and a few component overrides (styles.css).
+const applySkin = (skin) => { document.documentElement.dataset.skin = skin || 'studio'; };
+
 function openSettings() {
   if ($('#settingsDlg').open) return;
+  $(`input[name=skin][value="${state.settings.skin || 'studio'}"]`).checked = true;
   $('#setOutput').value = tilde(state.settings.outputDir);
   $('#setMin').value = state.settings.minMinutes;
   $('#setChapters').checked = state.settings.accurateChapters;
@@ -598,6 +602,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('change', (e) => {
   const el = e.target;
   if (el.dataset.toggle) { state[el.dataset.toggle] = el.checked; renderMain(); }
+  if (el.name === 'skin') applySkin(el.value); // preview at once; saved when Settings closes
   if (el.dataset.track) {
     const [title, idx] = el.dataset.track.split(':').map(Number);
     const set = state.tracks.get(title);
@@ -673,7 +678,9 @@ $('#settingsDlg').addEventListener('close', async () => {
   state.settings = await spinarr.setSettings({
     minMinutes: Math.max(0, +$('#setMin').value || 0),
     accurateChapters: $('#setChapters').checked,
+    skin: $('input[name=skin]:checked')?.value || 'studio',
   });
+  applySkin(state.settings.skin);
   renderMain();
   refreshFreeSpace();
 });
@@ -737,6 +744,7 @@ spinarr.on('drives-changed', (drives) => {
   }
   $('#settingsBtn').title = `Settings (${keys('⌘,')})`;
   state.settings = await spinarr.getSettings();
+  applySkin(state.settings.skin);
   state.system = await spinarr.system();
   renderSystem();
   state.drives = await spinarr.drives();

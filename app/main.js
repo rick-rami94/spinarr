@@ -38,6 +38,7 @@ const DEFAULTS = {
   outputDir: path.join((() => { try { return app.getPath('videos'); } catch { return path.join(os.homedir(), 'Videos'); } })(), 'Spinarr'),
   minMinutes: 2,
   accurateChapters: false, // a second full read of the title: doubles rip time on a real drive
+  skin: 'studio',
 };
 function loadSettings() {
   let saved = {};
