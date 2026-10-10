@@ -535,15 +535,18 @@ for (const f of files) {
 | A6 | `strict: false` on required status checks is acceptable for a solo maintainer | Pattern 6 | Less protection against semantic merge conflicts. Flip to `true` if preferred. |
 | A7 | GyanD essentials build includes the mpeg2video/ac3/dvdsub/mpegps decoders the oracle needs | Pattern 7 | Use `full_build` instead (larger) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does Phase 1 end with a merge to `main` and a patch release, so users actually get the gate?**
    - What we know: the goal says "closed immediately". The releasing work (signing etc.) is Phase 2.
    - Unclear: whether a v0.1.4 unsigned release with the gate should ship now.
    - Recommendation: the planner adds a final, optional, human-checkpoint task: "merge PR, tag v0.1.4". Otherwise the fix only exists on a branch.
+   - RESOLVED: optional checkpoint in 01-10 Tasks 3–4 (user decides at execution).
 2. **Should probe/rip gating stay limited to the untrusted case?**
    - Recommendation: yes, for this phase. SAFE-11 (later) makes "rips of unscanned sources rejected" universal.
+   - RESOLVED: 01-02 gates probe/rip only when the sandbox is untrusted.
 3. **Exact c8 thresholds.** These are only knowable from the first Linux CI run on the PR. Plan a two-commit sequence: c8 wired with zeros, then a baseline commit.
+   - RESOLVED: zero thresholds in 01-04, floored Linux baseline in 01-09.
 
 ## Environment Availability
 
