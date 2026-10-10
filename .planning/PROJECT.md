@@ -143,6 +143,10 @@ This milestone takes Spinarr from a credible prototype (v0.1.3) to a **v1.0 publ
 | Ship all platforms as 1.0, gated by CI + VM USB passthrough + a public beta | Only the Intel Mac is available as physical hardware | — Pending |
 | Repo-local git identity going forward; no history rewrite | Fixes attribution without breaking tags or releases | ✓ Done (2026-10-10) |
 | Keep sandbox-exec (deny-default) for 1.0; XPC later | Smaller change that closes SF-2 now | — Pending |
+| Windows encrypted physical rips: weaker restricted-token sandbox, disclosed, if the AppContainer spike fails; sector broker after 1.0 | Research: AppContainer likely can't open \\.\X: (LOW confidence; spike decides) | — Pending |
+| AACS 1.0 = per-disc keys (VUK) only; no drive handshake | Keeps the sandbox tight; avoids permanent drive-certificate revocation on the BU40N | — Pending |
+| TMDB: user brings own token (safeStorage), off by default | TMDB staff advise against embedded keys in OSS apps | — Pending |
+| Remove direct libdvdcss DLL link from README | Legal hygiene; no fetching or linking to decryption components | — Pending |
 
 ## Evolution
 
