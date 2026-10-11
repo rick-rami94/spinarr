@@ -25,6 +25,25 @@ function detachFixtureImages() {
 }
 module.exports.detachFixtureImages = detachFixtureImages;
 const call = (h, expr) => h.js(`(${expr}).then(v => ({ ok: true, v }), e => ({ ok: false, e: String(e && e.message) }))`);
+// SAFE-01: a scan entry point fired with the sandbox off shows the prompt and reads nothing.
+async function expectPrompt(h, src) {
+  await h.waitFor('state.pendingScan', { what: 'the Scan this disc? prompt' });
+  await h.sleep(1500); // long enough for a scan that wrongly started to show up
+  const st = await h.js(`({ disc: state.disc, scanning: state.scanning, pending: state.pendingScan,
+    btn: !!document.querySelector('.error-box.banner[role="alertdialog"] [data-action="scan-anyway"]'),
+    text: (document.querySelector('.error-box.banner[role="alertdialog"]') || {}).textContent || '' })`);
+  h.assert.equal(st.disc, null, 'nothing is scanned before the click');
+  h.assert.equal(st.scanning, false, 'no scan is running before the click');
+  h.assert.equal(st.pending, src);
+  h.assert.ok(st.btn, 'the prompt has a Scan anyway button');
+  h.assert.match(st.text, /sandbox is off/);
+  h.assert.ok(st.text.includes(path.basename(src)), `the prompt names ${path.basename(src)}`);
+}
+async function expectScanAfterClick(h) {
+  await h.click('[data-action="scan-anyway"]');
+  await h.waitFor('state.disc && state.disc.titles.length > 0', { timeout: 60000, what: 'scan after Scan anyway' });
+  h.assert.equal(await h.js('state.pendingScan'), null, 'consent is single use');
+}
 
 Object.assign(module.exports, {
   // ------------------------------------------------------------------ security
@@ -93,7 +112,9 @@ Object.assign(module.exports, {
 
       h.assert.equal((await call(h, `spinarr.reveal('/Applications/Calculator.app')`)).ok, true, 'reveal of unknown id is a no-op');
 
-      // Path traversal in file name + attempt to choose the output directory.
+      // Path traversal in file name + attempt to choose the output directory. Scan first (through
+      // the prompt when the sandbox is off) so the rip isn't refused as unscanned.
+      await h.load(src);
       const r = await call(h, `spinarr.rip([{ source: ${JSON.stringify(src)}, title: 2, duration: 12, fileName: '../../../../tmp/spinarr-pwned', displayName: 'x', outputDir: '/tmp' }])`);
       h.assert.equal(r.ok, true, r.e);
       await h.idle();
@@ -149,6 +170,120 @@ Object.assign(module.exports, {
         h.note(`${c}: ${st.disc ? 'scanned' : 'error: ' + st.error}`);
       }
       h.assert.equal(await h.js('1 + 1'), 2, 'renderer still responsive');
+    },
+  },
+
+  // ------------------------------------------------------------------ SAFE-01 scan gate
+  // Every scan entry point, with the engine sandbox off (D-05: runs on every OS). Each one must
+  // prompt, read nothing until "Scan anyway", and prompt again for the same source (D-03).
+  // Boot shares onDrives with insertion; gate-static.test.js pins that call site.
+  gate_insert: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: an inserted disc prompts, scans only after Scan anyway, and prompts again',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic');
+      h.fakeInsert('NTSC_BASIC', src);
+      await expectPrompt(h, src);
+      await h.shot('prompt');
+      await expectScanAfterClick(h);
+      h.fakeEject();
+      await h.waitFor('state.drives.discs.length === 0', { what: 'fake eject' });
+      h.fakeInsert('NTSC_BASIC', src);
+      await expectPrompt(h, src);
+    },
+  },
+
+  gate_drop: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: a dropped disc image prompts, scans only after Scan anyway, and prompts again',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic.iso');
+      await h.dropFile(src);
+      await expectPrompt(h, src);
+      await expectScanAfterClick(h);
+      await h.dropFile(src);
+      await expectPrompt(h, src);
+    },
+  },
+
+  gate_pick_iso: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: an image chosen in the picker prompts, scans only after Scan anyway, and prompts again',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic.iso');
+      h.stubDialog([src]);
+      await h.click('#openBtn');
+      await expectPrompt(h, src);
+      await expectScanAfterClick(h);
+      await h.click('#openBtn');
+      await expectPrompt(h, src);
+    },
+  },
+
+  gate_pick_folder: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: a folder chosen in the picker prompts, scans only after Scan anyway; Not now clears it',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic');
+      h.stubDialog([src]);
+      await h.js("openPicker('folder'); 1"); // #openFolderBtn is hidden on macOS
+      await expectPrompt(h, src);
+      await expectScanAfterClick(h);
+      await h.js("openPicker('folder'); 1");
+      await expectPrompt(h, src);
+      await h.click('[data-action="scan-cancel"]');
+      h.assert.deepEqual(await h.js('({ p: state.pendingScan, s: state.source })'), { p: null, s: null }, 'Not now clears the prompt and the source');
+      await h.sleep(1000);
+      h.assert.equal(await h.js('state.disc'), null, 'Not now scans nothing');
+    },
+  },
+
+  sec_gate_ipc: {
+    stories: ['SAFE-01', 'SEC-04'],
+    title: 'Sandbox off: main refuses a scan without consent, and probe/rip of an unscanned source',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = JSON.stringify(h.fx('ntsc_basic.iso'));
+      const sys = (await call(h, 'spinarr.system()')).v;
+      h.assert.equal(sys.sandboxTrusted, false);
+      h.assert.equal(sys.sandbox, 'none');
+      for (const expr of [`spinarr.scan(${src})`, `spinarr.scan(${src}, { userConfirmed: 'true' })`, `spinarr.scan(${src}, { userConfirmed: 1 })`, `spinarr.scan(${src}, {})`]) {
+        const r = await call(h, expr);
+        h.assert.equal(r.ok, false, `should refuse: ${expr}`);
+        h.assert.match(r.e, /SANDBOX_OFF/, expr);
+      }
+      const bad = await call(h, `spinarr.scan(${src}, 'x')`);
+      h.assert.equal(bad.ok, false);
+      h.assert.match(bad.e, /Invalid scan options/);
+      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, false, 'probe of an unscanned source is refused');
+      h.assert.equal((await call(h, `spinarr.rip([{ source: ${src}, title: 1 }])`)).ok, false, 'rip of an unscanned source is refused');
+      h.assert.equal(await h.js('state.queue.length'), 0);
+      await h.load(h.fx('ntsc_basic.iso')); // the real prompt and button
+      h.assert.equal(await h.js('state.disc.titles.length'), 2);
+      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, true, 'probe works once the source was scanned with consent');
+    },
+  },
+
+  sec_xss_prompt: {
+    platforms: ['darwin', 'linux'], // Windows doesn't allow < > " in file names
+    stories: ['SEC-08', 'SAFE-01'],
+    title: 'Sandbox off: HTML in a disc or folder name is shown as text in the scan prompt',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      for (const src of [h.fx(`<svg onload=window.__xss=2>&"quote'`), h.fx('xss_label.iso')]) {
+        await h.js(`requestScan(${JSON.stringify(src)}); 1`);
+        await expectPrompt(h, src);
+        h.assert.equal(await h.js('window.__xss'), undefined);
+        h.assert.equal(await h.js(`document.querySelectorAll('#main svg[onload], #main img').length`), 0);
+      }
+      await h.js(`requestScan(${JSON.stringify(h.fx(`<svg onload=window.__xss=2>&"quote'`))}); 1`);
+      await h.waitFor('state.pendingScan');
+      h.assert.match(await h.js(`document.querySelector('.error-box.banner[role="alertdialog"]').textContent`), /<svg onload/, 'name shown literally');
+      await h.shot('xss-prompt');
     },
   },
 
@@ -341,6 +476,7 @@ Object.assign(module.exports, {
       h.assert.equal(await h.js('state.disc'), null, 'disk images are not scanned automatically');
       h.assert.match(await h.js(`document.querySelector('[data-src="/Volumes/NTSC_BASIC"]').textContent`), /Disk image · click to scan/);
       await h.click('[data-src="/Volumes/NTSC_BASIC"]');
+      await h.consent();
       await h.waitFor('state.disc && state.disc.titles.length === 2');
       await h.shot('mounted');
       await h.click('[data-eject="/Volumes/NTSC_BASIC"]');
@@ -360,6 +496,7 @@ Object.assign(module.exports, {
       hdiutil('attach', '-nobrowse', '-readonly', fx('feature_disc.iso'));
       await h.waitFor(`state.drives.discs.some(d => d.path === '/Volumes/THE_TEST_MOVIE_DISC_1')`);
       await h.click('[data-src="/Volumes/THE_TEST_MOVIE_DISC_1"]');
+      await h.consent();
       await h.waitFor('state.disc');
       await h.click('[data-action="rip"]');
       await h.waitFor('state.queue[0] && state.queue[0].progress > 0.03', { timeout: 60000 });
