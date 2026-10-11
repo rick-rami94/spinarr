@@ -616,6 +616,33 @@ Object.assign(module.exports, {
     },
   },
 
+  us_default_chapters: {
+    stories: ['QUAL-02', 'US-16'],
+    title: 'Shipped default accurateChapters=false: a playable MKV with all 4 chapters',
+    setup(env) { env.settings = { accurateChapters: false }; },
+    async run(h) {
+      h.assert.equal(await h.js('state.settings.accurateChapters'), false, 'the shipped default is in effect');
+      await h.load(h.fx('ntsc_basic.iso'));
+      if (!(await h.js(`!!document.querySelector('[data-select="1"]')`))) await h.click('[data-toggle="showShort"]');
+      for (const t of await h.js('[...state.selected]')) if (t !== 1) await h.click(`[data-select="${t}"]`);
+      if (!(await h.js('state.selected.has(1)'))) await h.click('[data-select="1"]');
+      h.assert.deepEqual(await h.js('[...state.selected]'), [1], 'only title 1 is selected');
+      await h.click('[data-action="rip"]');
+      await h.idle();
+      h.assert.deepEqual(await h.js('state.queue.map(j => j.state)'), ['done']);
+      const out = files(h.outDir).filter((f) => f.endsWith('.mkv'));
+      h.assert.equal(out.length, 1, `one MKV (${files(h.outDir).join(', ')})`);
+      const p = h.probe(path.join(h.outDir, out[0]));
+      h.assert.equal(p.streams.filter((s) => s.codec_type === 'video').length, 1);
+      const audio = p.streams.filter((s) => s.codec_type === 'audio');
+      h.assert.deepEqual(audio.map((s) => s.tags && s.tags.language), ['eng', 'spa']);
+      h.assert.equal(p.chapters.length, 4, '4 chapters');
+      // Same tolerance as the engine accurateChapters=false test (plan 01-04).
+      p.chapters.forEach((c, i) => h.assert.ok(Math.abs(+c.start_time - i * 10) <= 0.6, `chapter ${i + 1} starts at ${c.start_time}s, expected ${i * 10}s`));
+      h.note(`chapters at ${p.chapters.map((c) => (+c.start_time).toFixed(2)).join(', ')} s`);
+    },
+  },
+
   us_bluray_encrypted: {
     stories: ['US-27', 'SEC-11'],
     title: 'Encrypted Blu-ray without libaacs: clear message, Rip disabled, and the backend refuses it too',
