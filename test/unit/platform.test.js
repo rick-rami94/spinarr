@@ -89,7 +89,18 @@ test('createPlatform: per-OS folders, engine environment and executable names', 
   assert.equal(win.sandboxKind, 'none');
   assert.match(win.engineEnv.PATH, /^C:\\Users\\me\\AppData\\Roaming\\Spinarr[\\/]lib;/, 'libdvdcss folder is searched first');
   assert.equal(win.info().dvdcss.canPick, true);
+  assert.ok(!('url' in win.info().dvdcss), 'no download link for libdvdcss (D-19)');
+  assert.equal(require('../../app/platform').VIDEOLAN_WIN64, undefined);
   assert.deepEqual(win.wrap('C:\\e\\ffmpeg.exe', ['-v'], {}), ['C:\\e\\ffmpeg.exe', ['-v']]);
+});
+
+test('createPlatform: empty XDG vars fall through to home (hermetic e2e home)', () => {
+  const run = async () => '';
+  const linux = createPlatform({ run, platform: 'linux', home: '/t/home', env: { XDG_CONFIG_HOME: '', XDG_CACHE_HOME: '' } });
+  assert.equal(linux.keyDirs.aacsConf, '/t/home/.config/aacs');
+  assert.equal(linux.cssCache, '/t/home/.cache/dvdcss');
+  assert.equal(linux.engineEnv.XDG_CONFIG_HOME, '/t/home/.config');
+  assert.equal(linux.engineEnv.XDG_CACHE_HOME, '/t/home/.cache');
 });
 
 test('looksLikeKeydb accepts the KEYDB.cfg format and rejects anything else', () => {
