@@ -50,9 +50,47 @@ function launch(name, i, env) {
   });
 }
 
+// CI-only real-home sentinel (D-22). Plants a valid-looking KEYDB.cfg in the runner's REAL
+// libaacs config folder so sec_hermetic_keydirs can prove the app never reads it. Runs only
+// when CI === 'true' (never on a developer's machine), never overwrites an existing file
+// (flag 'wx'), and removes only the file it created.
+function plantSentinel() {
+  const inCi = process.env.CI === 'true';
+  if (!inCi) return null;
+  const home = os.homedir();
+  const dir = process.platform === 'darwin' ? path.join(home, 'Library', 'Preferences', 'aacs')
+    : process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'aacs')
+      : path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'aacs');
+  const file = path.join(dir, 'KEYDB.cfg');
+  const body = [
+    '; Spinarr e2e CI sentinel. Not a real key file; removed after the run.',
+    `0x${'0'.repeat(40)} = SPINARR SENTINEL | D | 2026-01-01 | V | 0x${'0'.repeat(32)}`,
+    `| PK | 0x${'0'.repeat(32)}`,
+    '',
+  ].join('\n');
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, body, { flag: 'wx' });
+  } catch (e) {
+    console.log(`sentinel: not planted (${e.code || e.message}); sec_hermetic_keydirs checks paths only`);
+    return null;
+  }
+  process.env.SPINARR_SENTINEL = file; // truthy; the scenario also checks the file is in place
+  console.log(`sentinel: planted ${file}`);
+  return file;
+}
+let sentinelRemoved = false;
+function removeSentinel(file) {
+  if (!file || sentinelRemoved) return;
+  sentinelRemoved = true;
+  try { fs.unlinkSync(file); console.log(`sentinel: removed ${file}`); } catch (e) { console.log(`sentinel: could not remove ${file}: ${e.message}`); }
+}
+
 (async () => {
   fs.mkdirSync(SHOTS, { recursive: true });
   scenarios.detachFixtureImages();
+  const sentinel = plantSentinel();
+  process.on('exit', () => removeSentinel(sentinel)); // also covers an exit from a crash below
   const results = [];
   for (const name of names) {
     const sc = scenarios[name];
@@ -90,6 +128,7 @@ function launch(name, i, env) {
     scenarios.detachFixtureImages();
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+  removeSentinel(sentinel);
 
   const passed = results.filter((r) => r.pass && !r.skipped).length;
   const skipped = results.filter((r) => r.skipped).length;

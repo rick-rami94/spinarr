@@ -2,6 +2,7 @@
 // requirements (docs/SECURITY_TESTING.md). `run(h)` executes inside the app (see harness.js);
 // optional `setup(env)` / `after(env)` run in the test runner process.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -575,6 +576,43 @@ Object.assign(module.exports, {
         [['h264', undefined], ['ac3', 'eng'], ['flac', 'eng'], ['hdmv_pgs_subtitle', 'eng'], ['hdmv_pgs_subtitle', 'fre']]);
       h.assert.equal(p.chapters.length, 5);
       h.assert.equal(p.format.tags.title, 'My Test Movie');
+    },
+  },
+
+  sec_hermetic_keydirs: {
+    stories: ['QUAL-02'],
+    title: 'Hermetic e2e: every key and cache folder lives under the test home, never the real one',
+    async run(h) {
+      const home = process.env.SPINARR_TEST_HOME;
+      const inside = (base, p) => { const r = path.relative(base, p); return !!p && r !== '' && !r.startsWith('..') && !path.isAbsolute(r); };
+      h.assert.ok(home, 'SPINARR_TEST_HOME is set for every launch');
+      h.assert.ok(inside(fs.realpathSync(os.tmpdir()), fs.realpathSync(home)), `test home ${home} is under the temp dir`);
+      h.assert.ok(!inside(home, os.homedir()) && path.resolve(home) !== path.resolve(os.homedir()), 'test home is not the real home');
+      const pl = h.ctx.platform;
+      h.assert.ok(inside(home, pl.cssCache), `cssCache ${pl.cssCache} is under the test home`);
+      for (const [k, v] of Object.entries(pl.keyDirs)) h.assert.ok(inside(home, v), `keyDirs.${k} ${v} is under the test home`);
+      const sys = await h.js('spinarr.system()');
+      h.assert.ok(inside(home, sys.aacs.keydbPath), `keydbPath ${sys.aacs.keydbPath} is under the test home`);
+      h.assert.equal(sys.aacs.keydb, false, 'no KEYDB.cfg in the fresh test home');
+      if (process.env.SPINARR_SENTINEL) {
+        // CI only: run.js planted a valid-looking KEYDB.cfg in the runner's REAL aacs folder
+        // (SPINARR_SENTINEL is its path). The app must not see it.
+        h.assert.ok(fs.existsSync(process.env.SPINARR_SENTINEL), 'the real-home sentinel is in place');
+        h.assert.ok(!inside(home, process.env.SPINARR_SENTINEL), 'the sentinel is outside the test home');
+        await h.load(h.fx('bd_aacs'));
+        const reason = await h.js(`document.querySelector('.error-box.banner').textContent`);
+        h.assert.match(reason, /encrypted \(AACS\)/);
+        // Never a reason that implies a key file was read (no key / no host cert / revoked).
+        h.assert.doesNotMatch(reason, /has no key that opens it|has no host certificate|revokes the host certificates/, 'the planted real-home KEYDB.cfg was read');
+        // Allowed: no libaacs, no KEYDB.cfg (naming the test-home path), or libaacs giving up on
+        // the fixture's random AACS files before it looks for a key file (-1).
+        h.assert.match(reason, /Install libaacs|found no KEYDB\.cfg|AACS files couldn't be read/);
+        if (/found no KEYDB\.cfg/.test(reason)) h.assert.ok(reason.includes(sys.aacs.keydbPath), 'the no-KEYDB reason names the test-home path');
+        const which = /Install libaacs/.test(reason) ? 'libaacs not installed' : /found no KEYDB/.test(reason) ? 'no KEYDB.cfg (test home)' : 'AACS files unreadable (-1, before key lookup)';
+        h.note(`sentinel active at ${process.env.SPINARR_SENTINEL}; bd_aacs reason: ${which}`);
+      } else {
+        h.note('sentinel inactive (CI !== "true"); path assertions only');
+      }
     },
   },
 
