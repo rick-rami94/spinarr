@@ -1,0 +1,25 @@
+# Version updates (D-18). Security updates are enabled separately in repo settings.
+# npm minor/patch bumps are grouped; majors (Electron included) arrive as their own PRs
+# so each one gets a full CI and e2e run.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-tooling:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    cooldown:
+      default-days: 7
+  # Keeps the SHA pins in .github/workflows fresh (they carry `# vX.Y.Z` comments).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
