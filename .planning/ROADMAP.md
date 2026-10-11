@@ -42,10 +42,10 @@ Plans:
 **Wave 1**
 
 - [x] 01-01-PLAN.md — GitHub-side setup: approve, push branch, open draft PR, enable private reporting + Dependabot alerts/security updates (checkpoint)
-- [ ] 01-02-PLAN.md — Main-process gate: lib scanGate/validateScanOptions, gated scan/probe/rip, sandboxTrusted(), SPINARR_TEST_HOME hook, remove dvdcss-page sink
-- [ ] 01-03-PLAN.md — CI hardening: SHA pins, .nvmrc, hashed meson/zizmor, Dependabot config, c8 on Linux, Windows full suite with pinned oracle, Electron audit + zizmor
-- [ ] 01-04-PLAN.md — c8 wiring (zero thresholds) + Windows-portable engine/corpus tests + accurateChapters=false engine case
-- [ ] 01-05-PLAN.md — Neutral libdvdcss guidance (platform.js, README, docs) + SECURITY.md fallback contact and truthful gate wording
+- [x] 01-02-PLAN.md — Main-process gate: lib scanGate/validateScanOptions, gated scan/probe/rip, sandboxTrusted(), SPINARR_TEST_HOME hook, remove dvdcss-page sink
+- [x] 01-03-PLAN.md — CI hardening: SHA pins, .nvmrc, hashed meson/zizmor, Dependabot config, c8 on Linux, Windows full suite with pinned oracle, Electron audit + zizmor
+- [x] 01-04-PLAN.md — c8 wiring (zero thresholds) + Windows-portable engine/corpus tests + accurateChapters=false engine case
+- [x] 01-05-PLAN.md — Neutral libdvdcss guidance (platform.js, README, docs) + SECURITY.md fallback contact and truthful gate wording
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -190,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 1/10 | In Progress|  |
+| 1. Safety Gate & CI Baseline | 5/10 | In Progress|  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
