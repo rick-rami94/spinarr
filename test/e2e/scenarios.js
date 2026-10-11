@@ -40,7 +40,7 @@ Object.assign(module.exports, {
       h.assert.equal(r.href, 'app://spinarr/index.html');
       h.assert.ok(r.frozen, 'bridge object is frozen');
       h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'installKeydb', 'on',
-        'openDvdcssPage', 'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
+        'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
       h.assert.equal(await h.js(`window.open('https://example.com') === null`), true, 'window.open is denied');
       for (const target of ['https://example.com', 'file:///etc/hosts', 'app://spinarr/../../etc/hosts']) {
         await h.js(`location.href = ${JSON.stringify(target)}; 1`).catch(() => {});

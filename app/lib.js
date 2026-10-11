@@ -261,6 +261,24 @@ function validateTitle(n) {
   return n;
 }
 
+// Stable error-code prefix the renderer matches to show the consent prompt.
+const SANDBOX_OFF = 'SANDBOX_OFF';
+
+// Options for a scan call. Only a literal true counts as consent (same rule as accurateChapters).
+function validateScanOptions(o) {
+  if (o === undefined || o === null) return { userConfirmed: false };
+  if (typeof o !== 'object' || Array.isArray(o)) throw new Error('Invalid scan options');
+  return { userConfirmed: o.userConfirmed === true };
+}
+
+// The SAFE-01 gate: null when a scan may go ahead, otherwise the refusal message.
+// D-02: later functional sandbox probes feed `trusted`; the gate itself does not change.
+// Anything other than a boolean true fails closed.
+function scanGate({ trusted, userConfirmed } = {}) {
+  if (trusted === true || userConfirmed === true) return null;
+  return `${SANDBOX_OFF}: The engine sandbox is off on this system, so Spinarr won't read a disc until you choose Scan anyway.`;
+}
+
 function validateJob(j, opts) {
   if (!j || typeof j !== 'object') throw new Error('Invalid job');
   const streams = j.streams == null ? null : j.streams;
@@ -305,5 +323,5 @@ module.exports = {
   prettyName, safeFile, uniquePath, blurayBlocker, analyzeTitles, ripArgs, progressParser, ripVerdict,
   sourceKind, chaptersMetadata, blurayRipArgs, outputVideoSeconds,
   SANDBOX_PROFILE, sandboxed, volumeKind,
-  validateSource, validateTitle, validateJob, sanitizeSettingsPatch, SKINS,
+  validateSource, validateTitle, validateJob, validateScanOptions, scanGate, SANDBOX_OFF, sanitizeSettingsPatch, SKINS,
 };

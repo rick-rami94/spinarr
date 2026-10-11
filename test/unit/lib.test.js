@@ -134,6 +134,30 @@ test('validateTitle', () => {
   for (const bad of [0, 1000, -1, 1.5, '1', NaN, null, '1; rm -rf /']) assert.throws(() => lib.validateTitle(bad));
 });
 
+test('validateScanOptions', () => {
+  assert.deepEqual(lib.validateScanOptions(undefined), { userConfirmed: false });
+  assert.deepEqual(lib.validateScanOptions(null), { userConfirmed: false });
+  assert.deepEqual(lib.validateScanOptions({ userConfirmed: true }), { userConfirmed: true });
+  assert.deepEqual(lib.validateScanOptions({ userConfirmed: true, extra: 1 }), { userConfirmed: true });
+  for (const loose of [{ userConfirmed: 'true' }, { userConfirmed: 1 }, { userConfirmed: {} }, {}]) {
+    assert.deepEqual(lib.validateScanOptions(loose), { userConfirmed: false });
+  }
+  for (const bad of ['x', 1, true, []]) assert.throws(() => lib.validateScanOptions(bad), /Invalid scan options/);
+});
+
+test('scanGate', () => {
+  assert.equal(lib.SANDBOX_OFF, 'SANDBOX_OFF');
+  assert.equal(lib.scanGate({ trusted: true, userConfirmed: false }), null);
+  assert.equal(lib.scanGate({ trusted: false, userConfirmed: true }), null);
+  for (const closed of [{ trusted: false, userConfirmed: false }, { trusted: 'yes', userConfirmed: 1 }, {}, undefined]) {
+    const r = lib.scanGate(closed);
+    assert.equal(typeof r, 'string');
+    assert.ok(r.startsWith(`${lib.SANDBOX_OFF}:`));
+    assert.match(r, /sandbox is off/);
+    assert.match(r, /Scan anyway/);
+  }
+});
+
 test('validateJob sanitizes names and rejects malformed input', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-'));
   fs.writeFileSync(path.join(dir, 'd.iso'), '');
