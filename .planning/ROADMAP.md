@@ -37,7 +37,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The README contains no direct link to a libdvdcss DLL; setup guidance is neutral and nothing in the repo ships or fetches decryption components.
   5. CI on Windows runs the full suite (unit, security corpus, engine lossless oracle, e2e), e2e never reads the real user's AACS/dvdcss folders and covers `accurateChapters=false`, and c8 coverage is reported with a recorded baseline that fails on regression.
 
-**Plans**: 10 plans
+**Plans**: 12 plans (10 + 2 gap closure)
 Plans:
 **Wave 1**
 
@@ -66,6 +66,14 @@ Plans:
 **Wave 6** *(blocked on Wave 5 completion)*
 
 - [x] 01-10-PLAN.md — Branch protection on main (checkpoint, last step) + optional merge and v0.1.4 release (checkpoint)
+
+**Gap closure — Wave 1** *(CR-01 / WR-08, SAFE-01)*
+
+- [ ] 01-11-PLAN.md — Bind scan consent to medium identity (lib.mediumIdentity); gate probe/enqueue/pump/start; revalidate scans on volume change
+
+**Gap closure — Wave 2** *(blocked on 01-11)*
+
+- [ ] 01-12-PLAN.md — sec_gate_swap e2e (eject/swap/overwrite/queued), tightened sec_gate_ipc, truthful SECURITY.md, SAFE-01 left pending re-verification
 
 **UI hint**: yes
 
