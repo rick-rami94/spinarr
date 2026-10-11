@@ -25,6 +25,7 @@ const state = {
   drives: { discs: [], hasDrive: false },
   source: null,
   scanning: false,
+  pendingScan: null, // source waiting on a "Scan anyway" click (sandbox off); never remembered
   error: null,
   disc: null,
   discName: '',
@@ -37,7 +38,7 @@ const state = {
   showDups: false,
   queue: [],
   freeSpace: null,
-  system: null, // { platform, sandbox, dvdcss: { installed, command?, url?, canPick? }, bwrapHelp }
+  system: null, // { platform, sandbox, sandboxTrusted, dvdcss: { installed, command?, canPick? }, bwrapHelp }
   fresh: false, // animate the title list in once, right after a scan
 };
 
@@ -50,6 +51,8 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 const tilde = (p) => p.replace(/^\/(Users|home)\/[^/]+/, '~');
 const baseName = (p) => p.split(/[\\/]/).filter(Boolean).pop() || p;
+// Unknown (system info not loaded yet) counts as untrusted: fail closed.
+const sandboxTrusted = () => state.system?.sandboxTrusted === true;
 
 // ---------- derived ----------
 function visibleTitles() {
@@ -129,6 +132,7 @@ function renderMain() {
         <div class="disc xl"></div>
         <h1>Insert a DVD or Blu-ray</h1>
         <p>Spinarr copies each title to MKV exactly as it is on the disc, with every audio track, subtitle and chapter.</p>
+        ${state.pendingScan ? `<div class="error-box banner" role="alertdialog" aria-labelledby="scanPromptTitle">${ICON.alert}<div><b id="scanPromptTitle">Scan this disc?</b><span>The engine sandbox is off on this system, so reading <b>${esc(baseName(state.pendingScan))}</b> runs the disc parsers with your full user permissions. Only continue if you trust this disc.</span><div class="row-btns"><button class="primary-btn" data-action="scan-anyway">Scan anyway</button><button class="ghost-btn" data-action="scan-cancel">Not now</button></div></div></div>` : ''}
         ${state.error ? `<div class="error-box" role="alert">${ICON.alert}<div><b>Couldn't read this source</b><span>${esc(state.error)}</span></div></div>` : ''}
         <div class="cta">
           ${IS_MAC ? `<button class="primary-btn" data-action="open">${ICON.folder} Open image or folder <kbd>${keys('⌘O')}</kbd></button>`
@@ -389,9 +393,8 @@ function renderSystem() {
   const dvdcssBody = d.installed
     ? 'Encrypted DVDs can be read.'
     : d.canPick
-      ? `Needed for most commercial DVDs. Download <b>libdvdcss-2.dll</b> (64-bit) from VideoLAN, then choose it here.
-         <div class="row-btns"><button type="button" class="ghost-btn" data-action="dvdcss-page">Open VideoLAN download</button>
-         <button type="button" class="ghost-btn" data-action="dvdcss-pick">Choose DLL…</button></div>`
+      ? `Needed for most commercial DVDs. Spinarr can use <b>libdvdcss-2.dll</b> (64-bit) if you have it. Choose it here.
+         <div class="row-btns"><button type="button" class="ghost-btn" data-action="dvdcss-pick">Choose DLL…</button></div>`
       : `Needed for most commercial DVDs. Spinarr doesn't ship it. Install it with:${cmd(d.command)}`;
   const a = sys.aacs;
   const aacsBody = !a.libaacs
@@ -422,7 +425,24 @@ function focusKey() {
 function restoreFocus(sel) { if (sel) $(sel)?.focus({ preventScroll: true }); }
 
 // ---------- actions ----------
-async function loadSource(src) {
+// The only way into a scan. With the engine sandbox off, show the "Scan this disc?" prompt
+// instead; only its "Scan anyway" button (confirmScan) sends consent, once, for this disc.
+function requestScan(src) {
+  if (sandboxTrusted()) return loadSource(src);
+  Object.assign(state, { source: src, disc: null, error: null, scanning: false, pendingScan: src });
+  Object.assign(state, { selected: new Set(), open: new Set(), probes: new Map(), tracks: new Map(), fileNames: new Map() });
+  renderSources(); renderMain();
+}
+
+function confirmScan() {
+  const src = state.pendingScan;
+  if (!src) return;
+  state.pendingScan = null; // single use: never stored in a setting or session flag
+  loadSource(src, { userConfirmed: true });
+}
+
+async function loadSource(src, opts) {
+  state.pendingScan = null;
   state.source = src;
   state.scanning = true;
   state.error = null;
@@ -430,7 +450,7 @@ async function loadSource(src) {
   Object.assign(state, { selected: new Set(), open: new Set(), probes: new Map(), tracks: new Map(), fileNames: new Map() });
   renderSources(); renderMain();
   try {
-    const disc = await spinarr.scan(src);
+    const disc = await spinarr.scan(src, opts);
     if (state.source !== src) return;
     state.disc = disc;
     state.discName = disc.name;
@@ -438,6 +458,12 @@ async function loadSource(src) {
     const main = disc.titles.find((t) => t.main);
     if (main) { state.selected.add(main.title); probe(main.title); }
   } catch (e) {
+    if (cleanErr(e).startsWith('SANDBOX_OFF') && state.source === src) {
+      // Main refused: the sandbox is off even if our copy of system info said otherwise.
+      if (state.system) state.system.sandboxTrusted = false;
+      state.scanning = false;
+      return requestScan(src);
+    }
     state.error = cleanErr(e);
   }
   state.scanning = false;
@@ -533,7 +559,7 @@ async function startRip() {
   }
 }
 
-async function openPicker(kind = IS_MAC ? 'any' : 'file') { const p = await spinarr.pickSource(kind); if (p) loadSource(p); }
+async function openPicker(kind = IS_MAC ? 'any' : 'file') { const p = await spinarr.pickSource(kind); if (p) requestScan(p); }
 
 // Skins restyle the same markup through tokens and a few component overrides (styles.css).
 const applySkin = (skin) => { document.documentElement.dataset.skin = skin || 'studio'; };
@@ -555,13 +581,13 @@ document.addEventListener('click', async (e) => {
 
   if (t.dataset.eject) {
     e.stopPropagation();
-    if (state.source === t.dataset.eject) { state.source = null; state.disc = null; renderMain(); }
+    if (state.source === t.dataset.eject) { state.source = null; state.disc = null; state.pendingScan = null; renderMain(); }
     await spinarr.eject(t.dataset.eject);
     return;
   }
   if (t.dataset.select) { e.stopPropagation(); toggleSelect(+t.dataset.select); return; }
   if (t.dataset.expand) { toggleOpen(+t.dataset.expand); return; }
-  if (t.dataset.src) { if (t.dataset.src !== state.source || !state.disc) loadSource(t.dataset.src); return; }
+  if (t.dataset.src) { if (t.dataset.src !== state.source || !state.disc) requestScan(t.dataset.src); return; }
   if (t.dataset.cancel) return spinarr.cancel(t.dataset.cancel);
   if (t.dataset.reveal) return spinarr.reveal(t.dataset.reveal);
   if (t.dataset.step) {
@@ -573,7 +599,8 @@ document.addEventListener('click', async (e) => {
   switch (t.dataset.action) {
     case 'open': openPicker(); break;
     case 'open-folder': openPicker('folder'); break;
-    case 'dvdcss-page': spinarr.openDvdcssPage(); break;
+    case 'scan-anyway': confirmScan(); break;
+    case 'scan-cancel': state.pendingScan = null; state.source = null; renderSources(); renderMain(); break;
     case 'dvdcss-pick':
       try { state.system = await spinarr.installDvdcss(); renderSystem(); if (state.system.dvdcss.installed) toast('ok', '<b>libdvdcss installed.</b> Encrypted DVDs can now be read.'); }
       catch (err) { toast('bad', esc(cleanErr(err))); }
@@ -585,7 +612,7 @@ document.addEventListener('click', async (e) => {
         renderSystem();
         if (info.installed) {
           toast('ok', '<b>Key file installed.</b> Blu-rays it covers can now be opened.');
-          if (state.disc?.blocked && state.source) loadSource(state.source); // try the disc again
+          if (state.disc?.blocked && state.source) requestScan(state.source); // try the disc again
         }
       } catch (err) { toast('bad', esc(cleanErr(err))); }
       break;
@@ -698,7 +725,7 @@ window.addEventListener('drop', (e) => {
   if (!f) return;
   let p = spinarr.pathForFile(f);
   p = p.replace(/[\\/](VIDEO_TS|BDMV)[\\/]?$/i, '');
-  if (p) loadSource(p);
+  if (p) requestScan(p);
 });
 
 // main-process events
@@ -721,16 +748,23 @@ spinarr.on('queue-idle', () => {
   if (done && !document.hasFocus()) new Notification('Spinarr', { body: `Finished ripping ${done} title${done === 1 ? '' : 's'}.` });
   refreshFreeSpace();
 });
-spinarr.on('drives-changed', (drives) => {
-  const before = new Set(state.drives.discs.map((d) => d.path));
+// Boot and disc insertion share this path. On boot every optical disc already present counts
+// as inserted.
+function onDrives(drives, { boot = false } = {}) {
+  const before = new Set(boot ? [] : state.drives.discs.map((d) => d.path));
   state.drives = drives;
-  // Only physical discs scan automatically; images and other volumes wait for a click.
+  // Physical discs scan automatically only while the engine sandbox is on. Otherwise, and for
+  // images and other volumes, Spinarr waits for a click.
   const inserted = drives.discs.find((d) => !before.has(d.path) && d.kind === 'optical');
   const sourceGone = state.source?.startsWith('/Volumes/') && !drives.discs.some((d) => d.path === state.source);
-  if (sourceGone) { state.source = null; state.disc = null; renderMain(); }
-  if (inserted && !state.scanning && !state.queue.some((j) => j.state === 'ripping')) loadSource(inserted.path);
+  if (sourceGone) {
+    if (state.pendingScan === state.source) state.pendingScan = null;
+    state.source = null; state.disc = null; renderMain();
+  }
+  if (inserted && !state.scanning && !state.queue.some((j) => j.state === 'ripping')) requestScan(inserted.path);
   renderSources();
-});
+}
+spinarr.on('drives-changed', (drives) => onDrives(drives));
 
 // boot
 (async () => {
@@ -747,11 +781,11 @@ spinarr.on('drives-changed', (drives) => {
   applySkin(state.settings.skin);
   state.system = await spinarr.system();
   renderSystem();
-  state.drives = await spinarr.drives();
+  const drives = await spinarr.drives();
+  state.drives = drives;
   renderSources();
   renderMain();
   renderQueue();
   refreshFreeSpace();
-  const optical = state.drives.discs.find((d) => d.kind === 'optical');
-  if (optical) loadSource(optical.path);
+  onDrives(drives, { boot: true });
 })();

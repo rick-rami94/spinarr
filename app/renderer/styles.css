@@ -354,6 +354,7 @@ kbd {
 .error-box svg { color: var(--bad); width: 18px; height: 18px; margin-top: 1px; }
 .error-box b { display: block; font-weight: 600; margin-bottom: 2px; }
 .error-box span { color: var(--text-2); }
+.error-box span b { display: inline; margin: 0; } /* names inline in the scan prompt */
 .error-box.banner { margin: 0 40px 16px; max-width: none; }
 
 /* ==========================================================================
