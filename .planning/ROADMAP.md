@@ -61,7 +61,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 01-09-PLAN.md — Push, get CI green on all four jobs, commit floored Linux c8 baseline, confirm check names
+- [x] 01-09-PLAN.md — Push, get CI green on all four jobs, commit floored Linux c8 baseline, confirm check names
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -190,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 8/10 | In Progress|  |
+| 1. Safety Gate & CI Baseline | 9/10 | In Progress|  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |

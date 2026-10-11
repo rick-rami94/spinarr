@@ -9,7 +9,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 
 ### Engine Sandbox & Security (SAFE)
 
-- [ ] **SAFE-01**: A disc is never scanned automatically while the engine sandbox is inactive, on any OS. The user sees why, and must click to scan. [SF-1]
+- [x] **SAFE-01**: A disc is never scanned automatically while the engine sandbox is inactive, on any OS. The user sees why, and must click to scan. [SF-1]
 - [ ] **SAFE-02**: On macOS, every engine tool runs under a deny-by-default sandbox profile, one profile per tool. Tests prove these are denied: `/tmp` reads, `$HOME` stat, Mach lookups (pasteboard, LaunchServices) and network. A real-drive rip still succeeds. [SF-2]
 - [ ] **SAFE-03**: On Linux, Spinarr ships its own bubblewrap with an AppArmor profile scoped to that binary. Engines run with a seccomp deny-list filter. A startup probe checks the sandbox actually works, and Settings shows the real status. [SF-7]
 - [ ] **SAFE-04**: On Ubuntu 24.04+ the deb's sandbox works out of the box. The AppImage reports reduced isolation and disables auto-scan when bwrap can't run. The Electron renderer sandbox is never silently disabled.
@@ -67,7 +67,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 
 ### Cross-Platform (PLAT)
 
-- [ ] **PLAT-01**: Windows CI runs the full suite: unit, security corpus, engine (lossless oracle) and e2e.
+- [x] **PLAT-01**: Windows CI runs the full suite: unit, security corpus, engine (lossless oracle) and e2e.
 - [ ] **PLAT-02**: CI runs on Ubuntu 22.04 and 24.04, including the bwrap sandbox test.
 - [ ] **PLAT-03**: Eject and disc-removal are implemented and tested on macOS, Linux and Windows. The UI clears on every OS when the source disappears.
 - [ ] **PLAT-04**: Windows and Linux builds are validated against the real USB drives through a VM with whole-device USB passthrough (VMware Fusion) from the Intel Mac. The results are recorded separately from bare-metal results.
@@ -80,13 +80,13 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 - [ ] **REL-03**: Every release has build-provenance attestations, a keyless cosign-signed SHA256SUMS and an SBOM generated from the engine pins. Immutable releases are on. [SF-4]
 - [ ] **REL-04**: Every release attaches a GPL corresponding-source bundle (app source plus upstream engine tarballs plus patches), and the app ships third-party license notices. [R-13]
 - [ ] **REL-05**: Private vulnerability reporting is on, SECURITY.md has a fallback contact, and Dependabot alerts and updates are on. [SF-3]
-- [ ] **REL-06**: All GitHub Actions are pinned by commit SHA, toolchains are pinned, `main` is branch-protected with required checks, and the dependency audit covers Electron. [SF-5]
+- [x] **REL-06**: All GitHub Actions are pinned by commit SHA, toolchains are pinned, `main` is branch-protected with required checks, and the dependency audit covers Electron. [SF-5]
 - [ ] **REL-07**: Releases before 1.0 are marked prerelease. A CHANGELOG is kept, and the release process is documented and followed.
 - [x] **REL-08**: The README no longer links directly to a libdvdcss DLL download. Setup guidance stays neutral and never ships or fetches decryption components.
 
 ### Quality & Documentation (QUAL)
 
-- [ ] **QUAL-01**: Code coverage (c8) is measured in CI for unit and engine tests, with a recorded baseline and no regression.
+- [x] **QUAL-01**: Code coverage (c8) is measured in CI for unit and engine tests, with a recorded baseline and no regression.
 - [x] **QUAL-02**: e2e is hermetic: test runs never read the real user's AACS or dvdcss folders. A scenario covers the default `accurateChapters=false` path.
 - [ ] **QUAL-03**: Every documentation discrepancy from the audit (DD-1..DD-11) is resolved. The build fails on non-system linkage, and the security-testing report is current.
 - [ ] **QUAL-04**: The hardware test matrix runs on the release candidate and is recorded in `docs/HARDWARE_TESTING.md`. It covers:
@@ -136,7 +136,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SAFE-01 | Phase 1 | Pending |
+| SAFE-01 | Phase 1 | Complete |
 | SAFE-02 | Phase 4 | Pending |
 | SAFE-03 | Phase 4 | Pending |
 | SAFE-04 | Phase 4 | Pending |
@@ -175,7 +175,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-09 | Phase 7 | Pending |
 | COLL-10 | Phase 7 | Pending |
 | COLL-11 | Phase 7 | Pending |
-| PLAT-01 | Phase 1 | Pending |
+| PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 4 | Pending |
 | PLAT-03 | Phase 5 | Pending |
 | PLAT-04 | Phase 8 | Pending |
@@ -185,10 +185,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-03 | Phase 2 | Pending |
 | REL-04 | Phase 2 | Pending |
 | REL-05 | Phase 1 | Pending |
-| REL-06 | Phase 1 | Pending |
+| REL-06 | Phase 1 | Complete |
 | REL-07 | Phase 8 | Pending |
 | REL-08 | Phase 1 | Complete |
-| QUAL-01 | Phase 1 | Pending |
+| QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 1 | Complete |
 | QUAL-03 | Phase 8 | Pending |
 | QUAL-04 | Phase 8 | Pending |
