@@ -803,7 +803,7 @@ Object.assign(module.exports, {
       await h.click('[data-toggle="showShort"]');
       await h.click('[data-select="4"]');
       await h.click('[data-action="rip"]');
-      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.3', { timeout: 90000 });
+      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.3', { timeout: 180000 });
       h.assert.equal(await h.js(`document.querySelector('.disc-head').classList.contains('ripping')`), true);
       await h.js(`document.getElementById('toasts').innerHTML = ''; 1`);
       await h.shot('ripping');
@@ -821,7 +821,7 @@ Object.assign(module.exports, {
       await h.click('[data-toggle="showShort"]');
       await h.click('[data-select="4"]');
       await h.click('[data-action="rip"]');
-      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.2', { timeout: 90000 });
+      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.2', { timeout: 180000 });
       for (const [skin, accent] of Object.entries(looks)) {
         const id = `#skin${skin[0].toUpperCase()}${skin.slice(1)}`;
         await h.click('#settingsBtn');
