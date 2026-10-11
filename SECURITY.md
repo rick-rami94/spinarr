@@ -4,7 +4,7 @@ Spinarr parses untrusted data: the structure of any disc or disk image you open.
 
 ## Reporting a vulnerability
 
-Please **don't open a public issue**. Report it privately through GitHub's **Security → Report a vulnerability** on this repository. Include:
+Please **don't open a public issue**. Report it privately through GitHub's **Security → Report a vulnerability** on this repository. If you can't use GitHub's private reporting, email **rickramirez94@gmail.com** instead (not a public issue) with the same details. Include:
 
 - The Spinarr version or commit, and your operating system and version.
 - A minimal reproducer, ideally just the `VIDEO_TS/*.IFO` files (a few KB) rather than a whole disc.
@@ -26,11 +26,16 @@ The full threat model and test results are in [docs/SECURITY_TESTING.md](docs/SE
   - writes only to the output folder and the decryption libraries' caches
   - a minimal environment
 
-  On **macOS** this is a sandbox profile (`app/lib.js`), which also blocks fork/exec. On **Linux** it's bubblewrap (`app/platform.js`): new user, PID, network, IPC and mount namespaces, with `/usr` and the source read-only and all capabilities dropped. If bubblewrap isn't installed, the engine runs unsandboxed and **Settings → System** says so. **Windows** has no engine sandbox yet, and Settings says that too.
+  On **macOS** this is a sandbox profile (`app/lib.js`), which also blocks fork/exec. On **Linux** it's bubblewrap (`app/platform.js`): new user, PID, network, IPC and mount namespaces, with `/usr` and the source read-only and all capabilities dropped. If bubblewrap isn't installed, the engine runs unsandboxed, **Settings → System** says so, and Spinarr asks before every scan. **Windows** has no engine sandbox yet. Settings says that too, and Spinarr asks before every scan.
 - **Patched, fuzzed parsers.** libdvdread is built from pinned, checksum-verified source with Spinarr's memory-safety patches (`engine/patches/`). The patches came from AddressSanitizer fuzzing, and the crash corpus runs as a regression suite (`test/fixtures/malicious/`).
 - **A locked-down UI process.** It runs with:
   - the Electron sandbox and context isolation, and no Node.js
   - a strict CSP on a dedicated `app://` origin
   - navigation and window opening blocked
   - every IPC argument validated in the main process
-- **No auto-scan of downloaded images.** Only physical optical discs scan automatically.
+- **No unsandboxed auto-scan.**
+  - Physical discs scan automatically only when the engine sandbox is on.
+  - Where it's off (Windows today, Linux without bubblewrap, or a dev run with `SPINARR_NO_SANDBOX`), Spinarr asks before every scan and never remembers the answer.
+  - Disk images and folders are never scanned without a click.
+
+  The limit: the prompt is enforced in the main process, which also refuses to probe or rip a disc that hasn't been scanned. That protects against app bugs, not against a UI process that is already compromised.

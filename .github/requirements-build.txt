@@ -1,0 +1,5 @@
+# Pinned engine build tool for CI and release builds. Installed with
+# `pip3 install --user --require-hashes -r .github/requirements-build.txt`.
+# Dependabot does not manage this file: bump the version and hash by hand
+# (hash from https://pypi.org/pypi/meson/<version>/json, the py3-none-any wheel).
+meson==1.12.1 --hash=sha256:930bc7542cbd9f57009e182fd014eba48cf1a0180a7b9006d2d32d8f168d8b02

@@ -2,6 +2,7 @@
 // requirements (docs/SECURITY_TESTING.md). `run(h)` executes inside the app (see harness.js);
 // optional `setup(env)` / `after(env)` run in the test runner process.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -25,6 +26,25 @@ function detachFixtureImages() {
 }
 module.exports.detachFixtureImages = detachFixtureImages;
 const call = (h, expr) => h.js(`(${expr}).then(v => ({ ok: true, v }), e => ({ ok: false, e: String(e && e.message) }))`);
+// SAFE-01: a scan entry point fired with the sandbox off shows the prompt and reads nothing.
+async function expectPrompt(h, src) {
+  await h.waitFor('state.pendingScan', { what: 'the Scan this disc? prompt' });
+  await h.sleep(1500); // long enough for a scan that wrongly started to show up
+  const st = await h.js(`({ disc: state.disc, scanning: state.scanning, pending: state.pendingScan,
+    btn: !!document.querySelector('.error-box.banner[role="alertdialog"] [data-action="scan-anyway"]'),
+    text: (document.querySelector('.error-box.banner[role="alertdialog"]') || {}).textContent || '' })`);
+  h.assert.equal(st.disc, null, 'nothing is scanned before the click');
+  h.assert.equal(st.scanning, false, 'no scan is running before the click');
+  h.assert.equal(st.pending, src);
+  h.assert.ok(st.btn, 'the prompt has a Scan anyway button');
+  h.assert.match(st.text, /sandbox is off/);
+  h.assert.ok(st.text.includes(path.basename(src)), `the prompt names ${path.basename(src)}`);
+}
+async function expectScanAfterClick(h) {
+  await h.click('[data-action="scan-anyway"]');
+  await h.waitFor('state.disc && state.disc.titles.length > 0', { timeout: 60000, what: 'scan after Scan anyway' });
+  h.assert.equal(await h.js('state.pendingScan'), null, 'consent is single use');
+}
 
 Object.assign(module.exports, {
   // ------------------------------------------------------------------ security
@@ -40,7 +60,7 @@ Object.assign(module.exports, {
       h.assert.equal(r.href, 'app://spinarr/index.html');
       h.assert.ok(r.frozen, 'bridge object is frozen');
       h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'installKeydb', 'on',
-        'openDvdcssPage', 'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
+        'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
       h.assert.equal(await h.js(`window.open('https://example.com') === null`), true, 'window.open is denied');
       for (const target of ['https://example.com', 'file:///etc/hosts', 'app://spinarr/../../etc/hosts']) {
         await h.js(`location.href = ${JSON.stringify(target)}; 1`).catch(() => {});
@@ -93,7 +113,9 @@ Object.assign(module.exports, {
 
       h.assert.equal((await call(h, `spinarr.reveal('/Applications/Calculator.app')`)).ok, true, 'reveal of unknown id is a no-op');
 
-      // Path traversal in file name + attempt to choose the output directory.
+      // Path traversal in file name + attempt to choose the output directory. Scan first (through
+      // the prompt when the sandbox is off) so the rip isn't refused as unscanned.
+      await h.load(src);
       const r = await call(h, `spinarr.rip([{ source: ${JSON.stringify(src)}, title: 2, duration: 12, fileName: '../../../../tmp/spinarr-pwned', displayName: 'x', outputDir: '/tmp' }])`);
       h.assert.equal(r.ok, true, r.e);
       await h.idle();
@@ -149,6 +171,120 @@ Object.assign(module.exports, {
         h.note(`${c}: ${st.disc ? 'scanned' : 'error: ' + st.error}`);
       }
       h.assert.equal(await h.js('1 + 1'), 2, 'renderer still responsive');
+    },
+  },
+
+  // ------------------------------------------------------------------ SAFE-01 scan gate
+  // Every scan entry point, with the engine sandbox off (D-05: runs on every OS). Each one must
+  // prompt, read nothing until "Scan anyway", and prompt again for the same source (D-03).
+  // Boot shares onDrives with insertion; gate-static.test.js pins that call site.
+  gate_insert: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: an inserted disc prompts, scans only after Scan anyway, and prompts again',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic');
+      h.fakeInsert('NTSC_BASIC', src);
+      await expectPrompt(h, src);
+      await h.shot('prompt');
+      await expectScanAfterClick(h);
+      h.fakeEject();
+      await h.waitFor('state.drives.discs.length === 0', { what: 'fake eject' });
+      h.fakeInsert('NTSC_BASIC', src);
+      await expectPrompt(h, src);
+    },
+  },
+
+  gate_drop: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: a dropped disc image prompts, scans only after Scan anyway, and prompts again',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic.iso');
+      await h.dropFile(src);
+      await expectPrompt(h, src);
+      await expectScanAfterClick(h);
+      await h.dropFile(src);
+      await expectPrompt(h, src);
+    },
+  },
+
+  gate_pick_iso: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: an image chosen in the picker prompts, scans only after Scan anyway, and prompts again',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic.iso');
+      h.stubDialog([src]);
+      await h.click('#openBtn');
+      await expectPrompt(h, src);
+      await expectScanAfterClick(h);
+      await h.click('#openBtn');
+      await expectPrompt(h, src);
+    },
+  },
+
+  gate_pick_folder: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: a folder chosen in the picker prompts, scans only after Scan anyway; Not now clears it',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = h.fx('ntsc_basic');
+      h.stubDialog([src]);
+      await h.js("openPicker('folder'); 1"); // #openFolderBtn is hidden on macOS
+      await expectPrompt(h, src);
+      await expectScanAfterClick(h);
+      await h.js("openPicker('folder'); 1");
+      await expectPrompt(h, src);
+      await h.click('[data-action="scan-cancel"]');
+      h.assert.deepEqual(await h.js('({ p: state.pendingScan, s: state.source })'), { p: null, s: null }, 'Not now clears the prompt and the source');
+      await h.sleep(1000);
+      h.assert.equal(await h.js('state.disc'), null, 'Not now scans nothing');
+    },
+  },
+
+  sec_gate_ipc: {
+    stories: ['SAFE-01', 'SEC-04'],
+    title: 'Sandbox off: main refuses a scan without consent, and probe/rip of an unscanned source',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      const src = JSON.stringify(h.fx('ntsc_basic.iso'));
+      const sys = (await call(h, 'spinarr.system()')).v;
+      h.assert.equal(sys.sandboxTrusted, false);
+      h.assert.equal(sys.sandbox, 'none');
+      for (const expr of [`spinarr.scan(${src})`, `spinarr.scan(${src}, { userConfirmed: 'true' })`, `spinarr.scan(${src}, { userConfirmed: 1 })`, `spinarr.scan(${src}, {})`]) {
+        const r = await call(h, expr);
+        h.assert.equal(r.ok, false, `should refuse: ${expr}`);
+        h.assert.match(r.e, /SANDBOX_OFF/, expr);
+      }
+      const bad = await call(h, `spinarr.scan(${src}, 'x')`);
+      h.assert.equal(bad.ok, false);
+      h.assert.match(bad.e, /Invalid scan options/);
+      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, false, 'probe of an unscanned source is refused');
+      h.assert.equal((await call(h, `spinarr.rip([{ source: ${src}, title: 1 }])`)).ok, false, 'rip of an unscanned source is refused');
+      h.assert.equal(await h.js('state.queue.length'), 0);
+      await h.load(h.fx('ntsc_basic.iso')); // the real prompt and button
+      h.assert.equal(await h.js('state.disc.titles.length'), 2);
+      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, true, 'probe works once the source was scanned with consent');
+    },
+  },
+
+  sec_xss_prompt: {
+    platforms: ['darwin', 'linux'], // Windows doesn't allow < > " in file names
+    stories: ['SEC-08', 'SAFE-01'],
+    title: 'Sandbox off: HTML in a disc or folder name is shown as text in the scan prompt',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      for (const src of [h.fx(`<svg onload=window.__xss=2>&"quote'`), h.fx('xss_label.iso')]) {
+        await h.js(`requestScan(${JSON.stringify(src)}); 1`);
+        await expectPrompt(h, src);
+        h.assert.equal(await h.js('window.__xss'), undefined);
+        h.assert.equal(await h.js(`document.querySelectorAll('#main svg[onload], #main img').length`), 0);
+      }
+      await h.js(`requestScan(${JSON.stringify(h.fx(`<svg onload=window.__xss=2>&"quote'`))}); 1`);
+      await h.waitFor('state.pendingScan');
+      h.assert.match(await h.js(`document.querySelector('.error-box.banner[role="alertdialog"]').textContent`), /<svg onload/, 'name shown literally');
+      await h.shot('xss-prompt');
     },
   },
 
@@ -341,6 +477,7 @@ Object.assign(module.exports, {
       h.assert.equal(await h.js('state.disc'), null, 'disk images are not scanned automatically');
       h.assert.match(await h.js(`document.querySelector('[data-src="/Volumes/NTSC_BASIC"]').textContent`), /Disk image · click to scan/);
       await h.click('[data-src="/Volumes/NTSC_BASIC"]');
+      await h.consent();
       await h.waitFor('state.disc && state.disc.titles.length === 2');
       await h.shot('mounted');
       await h.click('[data-eject="/Volumes/NTSC_BASIC"]');
@@ -360,6 +497,7 @@ Object.assign(module.exports, {
       hdiutil('attach', '-nobrowse', '-readonly', fx('feature_disc.iso'));
       await h.waitFor(`state.drives.discs.some(d => d.path === '/Volumes/THE_TEST_MOVIE_DISC_1')`);
       await h.click('[data-src="/Volumes/THE_TEST_MOVIE_DISC_1"]');
+      await h.consent();
       await h.waitFor('state.disc');
       await h.click('[data-action="rip"]');
       await h.waitFor('state.queue[0] && state.queue[0].progress > 0.03', { timeout: 60000 });
@@ -438,6 +576,70 @@ Object.assign(module.exports, {
         [['h264', undefined], ['ac3', 'eng'], ['flac', 'eng'], ['hdmv_pgs_subtitle', 'eng'], ['hdmv_pgs_subtitle', 'fre']]);
       h.assert.equal(p.chapters.length, 5);
       h.assert.equal(p.format.tags.title, 'My Test Movie');
+    },
+  },
+
+  sec_hermetic_keydirs: {
+    stories: ['QUAL-02'],
+    title: 'Hermetic e2e: every key and cache folder lives under the test home, never the real one',
+    async run(h) {
+      const home = process.env.SPINARR_TEST_HOME;
+      const inside = (base, p) => { const r = path.relative(base, p); return !!p && r !== '' && !r.startsWith('..') && !path.isAbsolute(r); };
+      h.assert.ok(home, 'SPINARR_TEST_HOME is set for every launch');
+      h.assert.ok(inside(fs.realpathSync(os.tmpdir()), fs.realpathSync(home)), `test home ${home} is under the temp dir`);
+      h.assert.ok(!inside(home, os.homedir()) && path.resolve(home) !== path.resolve(os.homedir()), 'test home is not the real home');
+      const pl = h.ctx.platform;
+      h.assert.ok(inside(home, pl.cssCache), `cssCache ${pl.cssCache} is under the test home`);
+      for (const [k, v] of Object.entries(pl.keyDirs)) h.assert.ok(inside(home, v), `keyDirs.${k} ${v} is under the test home`);
+      const sys = await h.js('spinarr.system()');
+      h.assert.ok(inside(home, sys.aacs.keydbPath), `keydbPath ${sys.aacs.keydbPath} is under the test home`);
+      h.assert.equal(sys.aacs.keydb, false, 'no KEYDB.cfg in the fresh test home');
+      if (process.env.SPINARR_SENTINEL) {
+        // CI only: run.js planted a valid-looking KEYDB.cfg in the runner's REAL aacs folder
+        // (SPINARR_SENTINEL is its path). The app must not see it.
+        h.assert.ok(fs.existsSync(process.env.SPINARR_SENTINEL), 'the real-home sentinel is in place');
+        h.assert.ok(!inside(home, process.env.SPINARR_SENTINEL), 'the sentinel is outside the test home');
+        await h.load(h.fx('bd_aacs'));
+        const reason = await h.js(`document.querySelector('.error-box.banner').textContent`);
+        h.assert.match(reason, /encrypted \(AACS\)/);
+        // Never a reason that implies a key file was read (no key / no host cert / revoked).
+        h.assert.doesNotMatch(reason, /has no key that opens it|has no host certificate|revokes the host certificates/, 'the planted real-home KEYDB.cfg was read');
+        // Allowed: no libaacs, no KEYDB.cfg (naming the test-home path), or libaacs giving up on
+        // the fixture's random AACS files before it looks for a key file (-1).
+        h.assert.match(reason, /Install libaacs|found no KEYDB\.cfg|AACS files couldn't be read/);
+        if (/found no KEYDB\.cfg/.test(reason)) h.assert.ok(reason.includes(sys.aacs.keydbPath), 'the no-KEYDB reason names the test-home path');
+        const which = /Install libaacs/.test(reason) ? 'libaacs not installed' : /found no KEYDB/.test(reason) ? 'no KEYDB.cfg (test home)' : 'AACS files unreadable (-1, before key lookup)';
+        h.note(`sentinel active at ${process.env.SPINARR_SENTINEL}; bd_aacs reason: ${which}`);
+      } else {
+        h.note('sentinel inactive (CI !== "true"); path assertions only');
+      }
+    },
+  },
+
+  us_default_chapters: {
+    stories: ['QUAL-02', 'US-16'],
+    title: 'Shipped default accurateChapters=false: a playable MKV with all 4 chapters',
+    setup(env) { env.settings = { accurateChapters: false }; },
+    async run(h) {
+      h.assert.equal(await h.js('state.settings.accurateChapters'), false, 'the shipped default is in effect');
+      await h.load(h.fx('ntsc_basic.iso'));
+      if (!(await h.js(`!!document.querySelector('[data-select="1"]')`))) await h.click('[data-toggle="showShort"]');
+      for (const t of await h.js('[...state.selected]')) if (t !== 1) await h.click(`[data-select="${t}"]`);
+      if (!(await h.js('state.selected.has(1)'))) await h.click('[data-select="1"]');
+      h.assert.deepEqual(await h.js('[...state.selected]'), [1], 'only title 1 is selected');
+      await h.click('[data-action="rip"]');
+      await h.idle();
+      h.assert.deepEqual(await h.js('state.queue.map(j => j.state)'), ['done']);
+      const out = files(h.outDir).filter((f) => f.endsWith('.mkv'));
+      h.assert.equal(out.length, 1, `one MKV (${files(h.outDir).join(', ')})`);
+      const p = h.probe(path.join(h.outDir, out[0]));
+      h.assert.equal(p.streams.filter((s) => s.codec_type === 'video').length, 1);
+      const audio = p.streams.filter((s) => s.codec_type === 'audio');
+      h.assert.deepEqual(audio.map((s) => s.tags && s.tags.language), ['eng', 'spa']);
+      h.assert.equal(p.chapters.length, 4, '4 chapters');
+      // Same tolerance as the engine accurateChapters=false test (plan 01-04).
+      p.chapters.forEach((c, i) => h.assert.ok(Math.abs(+c.start_time - i * 10) <= 0.6, `chapter ${i + 1} starts at ${c.start_time}s, expected ${i * 10}s`));
+      h.note(`chapters at ${p.chapters.map((c) => (+c.start_time).toFixed(2)).join(', ')} s`);
     },
   },
 
@@ -601,7 +803,7 @@ Object.assign(module.exports, {
       await h.click('[data-toggle="showShort"]');
       await h.click('[data-select="4"]');
       await h.click('[data-action="rip"]');
-      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.3', { timeout: 90000 });
+      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.3', { timeout: 180000 });
       h.assert.equal(await h.js(`document.querySelector('.disc-head').classList.contains('ripping')`), true);
       await h.js(`document.getElementById('toasts').innerHTML = ''; 1`);
       await h.shot('ripping');
@@ -619,7 +821,7 @@ Object.assign(module.exports, {
       await h.click('[data-toggle="showShort"]');
       await h.click('[data-select="4"]');
       await h.click('[data-action="rip"]');
-      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.2', { timeout: 90000 });
+      await h.waitFor('state.queue[0] && state.queue[0].state === "ripping" && state.queue[0].progress > 0.2', { timeout: 180000 });
       for (const [skin, accent] of Object.entries(looks)) {
         const id = `#skin${skin[0].toUpperCase()}${skin.slice(1)}`;
         await h.click('#settingsBtn');

@@ -6,8 +6,6 @@ const os = require('os');
 const path = require('path');
 const lib = require('./lib');
 
-const VIDEOLAN_WIN64 = 'https://download.videolan.org/pub/libdvdcss/1.2.11/win64/';
-
 // ---------- pure helpers ----------
 
 // `lsblk -J -o NAME,PATH,TYPE,RM,LABEL,MOUNTPOINT` -> [{ device, type, label, mount }]
@@ -287,7 +285,7 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
       return { installed, command: DVDCSS_COMMANDS.darwin };
     }
     if (isWin) {
-      return { installed: exists(P.join(userLib, 'libdvdcss-2.dll')), url: VIDEOLAN_WIN64, canPick: true };
+      return { installed: exists(P.join(userLib, 'libdvdcss-2.dll')), canPick: true };
     }
     const dirs = ['/usr/lib/x86_64-linux-gnu', '/usr/lib/aarch64-linux-gnu', '/lib/x86_64-linux-gnu', '/lib/aarch64-linux-gnu',
       '/usr/lib64', '/usr/lib', '/usr/local/lib'];
@@ -345,4 +343,4 @@ function createPlatform({ run, platform = process.platform, home = os.homedir(),
   };
 }
 
-module.exports = { createPlatform, parseLsblk, parseWinDisks, distroFamily, bwrapArgs, isPe64Dll, looksLikeKeydb, DVDCSS_COMMANDS, VIDEOLAN_WIN64 };
+module.exports = { createPlatform, parseLsblk, parseWinDisks, distroFamily, bwrapArgs, isPe64Dll, looksLikeKeydb, DVDCSS_COMMANDS };

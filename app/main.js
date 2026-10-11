@@ -30,9 +30,18 @@ function serveRenderer(request) {
 if (process.env.SPINARR_USER_DATA && !app.isPackaged) app.setPath('userData', process.env.SPINARR_USER_DATA);
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 // Platform specifics (drives, sandbox, decryption libraries). Test hooks are ignored when packaged.
+// Test hook (D-22): SPINARR_TEST_HOME points every key and cache dir at a test folder. Ignored when
+// packaged, same rule as SPINARR_USER_DATA. Empty XDG_* falls through to home in platform.js.
+const TEST_HOME = !app.isPackaged && process.env.SPINARR_TEST_HOME;
+const baseEnv = app.isPackaged ? { ...process.env, SPINARR_VOLUMES: '' } : process.env;
+const platformEnv = TEST_HOME
+  ? { ...baseEnv, XDG_CONFIG_HOME: '', XDG_CACHE_HOME: '',
+    APPDATA: path.join(TEST_HOME, 'AppData', 'Roaming'), LOCALAPPDATA: path.join(TEST_HOME, 'AppData', 'Local') }
+  : baseEnv;
 const platform = createPlatform({
   run, dataDir: app.getPath('userData'),
-  env: app.isPackaged ? { ...process.env, SPINARR_VOLUMES: '' } : process.env,
+  env: platformEnv,
+  home: TEST_HOME || os.homedir(),
 });
 const DEFAULTS = {
   outputDir: path.join((() => { try { return app.getPath('videos'); } catch { return path.join(os.homedir(), 'Videos'); } })(), 'Spinarr'),
@@ -97,7 +106,7 @@ function createWindow() {
   win.loadURL(INDEX_URL);
   // Dev/test hook: SPINARR_TEST=/path/to/script.js drives the window after load. Ignored in packaged builds.
   if (process.env.SPINARR_TEST && !app.isPackaged) {
-    win.webContents.once('did-finish-load', () => require(process.env.SPINARR_TEST)(win, app, { queue }));
+    win.webContents.once('did-finish-load', () => require(process.env.SPINARR_TEST)(win, app, { queue, platform }));
   }
 }
 const send = (ch, data) => win && !win.isDestroyed() && win.webContents.send(ch, data);
@@ -136,6 +145,9 @@ function run(cmd, args, { timeout = 120000, env } = {}) {
 
 // ---------- engine processes (sandboxed where the OS allows) ----------
 const NO_SANDBOX = process.env.SPINARR_NO_SANDBOX === '1' && !app.isPackaged;
+// The single "sandbox trusted" signal (D-02, D-05). Later phases AND a functional probe result
+// into this function only; the gate in lib.scanGate does not change.
+function sandboxTrusted() { return !NO_SANDBOX && platform.sandboxKind !== 'none'; }
 const ENGINE_ENV = platform.engineEnv;
 
 function engine(name, args, { source, outDir }) {
@@ -258,6 +270,8 @@ function enqueue(jobs) {
   if (!Array.isArray(jobs) || jobs.length > 99) throw new Error('Invalid job list');
   const clean = jobs.map((j) => {
     const job = lib.validateJob(j);
+    // SAFE-01: never parse an unscanned disc unsandboxed (SAFE-11 makes this universal later).
+    if (!sandboxTrusted() && !scans.has(job.source)) throw new Error('Scan the disc again before ripping');
     const disc = scans.get(job.source);
     if (disc?.type === 'bluray') {
       const blocked = blurayBlocker(disc.encryption);
@@ -422,8 +436,19 @@ handle('settings:set', (patch) => {
   return settings;
 });
 handle('drives', () => listDrives());
-handle('scan', (source) => scan(lib.validateSource(source)));
-handle('probe', (source, title) => probeTitle(lib.validateSource(source), lib.validateTitle(title)));
+// SAFE-01 gate. Consent is per call (D-03): an earlier scan of the same source never counts.
+handle('scan', (source, opts) => {
+  const src = lib.validateSource(source);
+  const { userConfirmed } = lib.validateScanOptions(opts);
+  const refusal = lib.scanGate({ trusted: sandboxTrusted(), userConfirmed });
+  if (refusal) throw new Error(refusal);
+  return scan(src);
+});
+handle('probe', (source, title) => {
+  const src = lib.validateSource(source);
+  if (!sandboxTrusted() && !scans.has(src)) throw new Error('Scan the disc first');
+  return probeTitle(src, lib.validateTitle(title));
+});
 handle('rip', (jobs) => enqueue(jobs));
 handle('cancel', (id) => cancel(String(id)));
 handle('clear-finished', () => clearFinished());
@@ -437,24 +462,25 @@ handle('eject', async (p) => {
   if (!drive) throw new Error('Not a mounted disc');
   await platform.eject(drive);
 });
-handle('system', () => platform.info());
+// What Settings shows. sandboxTrusted is the same signal the scan gate uses.
+const systemInfo = () => ({ ...platform.info(), sandbox: sandboxTrusted() ? platform.sandboxKind : 'none', sandboxTrusted: sandboxTrusted() });
+handle('system', () => systemInfo());
 // Windows: let the user hand us libdvdcss-2.dll (we never download or ship it).
 handle('install-dvdcss', async () => {
   if (!platform.isWin) throw new Error('Only needed on Windows');
   const r = await dialog.showOpenDialog(win, { title: 'Choose libdvdcss-2.dll', properties: ['openFile'], filters: [{ name: 'DLL', extensions: ['dll'] }] });
-  if (r.canceled || !r.filePaths[0]) return platform.info();
+  if (r.canceled || !r.filePaths[0]) return systemInfo();
   platform.installDvdcss(r.filePaths[0]);
-  return platform.info();
+  return systemInfo();
 });
 // Let the user hand us their own KEYDB.cfg (Spinarr never ships, downloads or links to keys).
 handle('install-keydb', async () => {
   const r = await dialog.showOpenDialog(win, { title: 'Choose your KEYDB.cfg', properties: ['openFile'],
     filters: [{ name: 'Key file', extensions: ['cfg', 'txt'] }, { name: 'All files', extensions: ['*'] }] });
-  if (r.canceled || !r.filePaths[0]) return platform.info();
+  if (r.canceled || !r.filePaths[0]) return systemInfo();
   platform.installKeydb(r.filePaths[0]);
-  return { ...platform.info(), installed: true };
+  return { ...systemInfo(), installed: true };
 });
-handle('open-dvdcss-page', () => { const u = platform.dvdcss().url; if (u) shell.openExternal(u); });
 // kind: 'any' (macOS dialogs can pick a file or a folder), or 'file' / 'folder' elsewhere.
 handle('pick-source', async (kind = 'any') => {
   if (!['any', 'file', 'folder'].includes(kind)) throw new Error('Invalid kind');

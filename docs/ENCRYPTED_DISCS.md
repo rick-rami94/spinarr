@@ -34,7 +34,7 @@ libdvdcss is the open-source library VLC uses to play DVDs. Install it with the 
 | Arch | `sudo pacman -S libdvdcss` |
 | openSUSE | `sudo zypper install libdvdcss2` (from Packman) |
 
-**Windows:** download the 64-bit `libdvdcss-2.dll` from [VideoLAN](https://download.videolan.org/pub/libdvdcss/1.2.11/win64/). Then go to **Settings → System → Choose DLL…** and pick it. Spinarr checks it's a valid 64-bit DLL and puts it where the engine looks.
+**Windows:** if you have the 64-bit `libdvdcss-2.dll`, go to **Settings → System → Choose DLL…** and pick it. Spinarr checks it's a valid 64-bit DLL and puts it where the engine looks.
 
 Then reopen Spinarr. **Settings → System** should say **libdvdcss installed**, and the **Finish setup** reminder in the sidebar disappears.
 

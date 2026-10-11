@@ -66,7 +66,7 @@ Most store-bought DVDs are encrypted with CSS. Spinarr doesn't ship the library 
 | Ubuntu, Debian, Mint | `sudo apt install libdvd-pkg && sudo dpkg-reconfigure libdvd-pkg` |
 | Fedora | `sudo dnf install libdvdcss` (from RPM Fusion) |
 | Arch | `sudo pacman -S libdvdcss` |
-| Windows | Download the 64-bit [`libdvdcss-2.dll`](https://download.videolan.org/pub/libdvdcss/1.2.11/win64/) from VideoLAN, then choose it in **Settings → System** |
+| Windows | Choose your own 64-bit `libdvdcss-2.dll` in **Settings → System**. Spinarr checks it and never downloads or ships it. |
 
 **Settings → System** shows whether it was found, with the right command for your system. Unencrypted discs, disc images and folders work without it.
 
@@ -116,7 +116,7 @@ A DVD is untrusted input parsed by C code, so Spinarr treats it that way:
   |---|---|
   | macOS | Built-in sandbox profile, which also blocks starting other programs |
   | Linux | [bubblewrap](https://github.com/containers/bubblewrap): fresh namespaces and read-only system files. The `.deb` installs it; for the AppImage, install it yourself. |
-  | Windows | None yet. **Settings → System** says so. The engine still uses the patched, fuzzed parsers below. |
+  | Windows | None yet. **Settings → System** says so, and because the engine sandbox is off, Spinarr asks before every scan. The engine still uses the patched, fuzzed parsers below. |
 
 - **Patched, fuzzed parsers.** libdvdread is built from verified source with memory-safety fixes found by fuzzing. Those fixes are being sent upstream.
 - **Locked-down UI.** No Node.js in the UI, a strict CSP, and every request to the backend validated.

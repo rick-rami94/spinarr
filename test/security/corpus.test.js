@@ -7,9 +7,10 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
+const exe = (n) => (process.platform === 'win32' ? `${n}.exe` : n);
 const SUITES = [
-  { tool: path.join(ROOT, 'engine', 'bin', 'dvdinfo'), dir: path.join(ROOT, 'test', 'fixtures', 'malicious') },
-  { tool: path.join(ROOT, 'engine', 'bin', 'bdinfo'), dir: path.join(ROOT, 'test', 'fixtures', 'malicious-bd') },
+  { tool: path.join(ROOT, 'engine', 'bin', exe('dvdinfo')), dir: path.join(ROOT, 'test', 'fixtures', 'malicious') },
+  { tool: path.join(ROOT, 'engine', 'bin', exe('bdinfo')), dir: path.join(ROOT, 'test', 'fixtures', 'malicious-bd') },
 ];
 
 for (const { tool, dir } of SUITES) for (const c of fs.readdirSync(dir).filter((d) => !d.startsWith('.')).sort()) {
