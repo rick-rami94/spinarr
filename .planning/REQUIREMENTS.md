@@ -82,7 +82,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 - [ ] **REL-05**: Private vulnerability reporting is on, SECURITY.md has a fallback contact, and Dependabot alerts and updates are on. [SF-3]
 - [ ] **REL-06**: All GitHub Actions are pinned by commit SHA, toolchains are pinned, `main` is branch-protected with required checks, and the dependency audit covers Electron. [SF-5]
 - [ ] **REL-07**: Releases before 1.0 are marked prerelease. A CHANGELOG is kept, and the release process is documented and followed.
-- [ ] **REL-08**: The README no longer links directly to a libdvdcss DLL download. Setup guidance stays neutral and never ships or fetches decryption components.
+- [x] **REL-08**: The README no longer links directly to a libdvdcss DLL download. Setup guidance stays neutral and never ships or fetches decryption components.
 
 ### Quality & Documentation (QUAL)
 
@@ -187,7 +187,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-05 | Phase 1 | Pending |
 | REL-06 | Phase 1 | Pending |
 | REL-07 | Phase 8 | Pending |
-| REL-08 | Phase 1 | Pending |
+| REL-08 | Phase 1 | Complete |
 | QUAL-01 | Phase 1 | Pending |
 | QUAL-02 | Phase 1 | Pending |
 | QUAL-03 | Phase 8 | Pending |

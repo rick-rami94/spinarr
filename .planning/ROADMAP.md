@@ -49,7 +49,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-06-PLAN.md — Renderer chokepoint requestScan/confirmScan, consent prompt, neutral DLL copy, gate-static + neutrality unit tests
+- [x] 01-06-PLAN.md — Renderer chokepoint requestScan/confirmScan, consent prompt, neutral DLL copy, gate-static + neutrality unit tests
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -190,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 5/10 | In Progress|  |
+| 1. Safety Gate & CI Baseline | 6/10 | In Progress|  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
