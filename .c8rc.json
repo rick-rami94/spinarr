@@ -1,0 +1,13 @@
+{
+  "all": true,
+  "src": ["app"],
+  "include": ["app/**/*.js"],
+  "exclude": ["app/main.js", "app/preload.js", "app/renderer/app.js"],
+  "reporter": ["text", "text-summary", "lcov"],
+  "report-dir": "coverage",
+  "check-coverage": true,
+  "lines": 0,
+  "statements": 0,
+  "functions": 0,
+  "branches": 0
+}
