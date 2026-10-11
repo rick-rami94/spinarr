@@ -10,6 +10,7 @@ const path = require('path');
 const lib = require('../../app/lib');
 
 const ROOT = path.join(__dirname, '..', '..');
+const exe = (n) => (process.platform === 'win32' ? `${n}.exe` : n);
 const BIN = path.join(ROOT, 'engine', 'bin');
 const FX = path.join(ROOT, 'test', 'fixtures', 'out');
 const ORACLE = process.env.ORACLE_FFMPEG_DIR || '/usr/local/bin';
@@ -17,13 +18,13 @@ const fx = (n) => path.join(FX, n);
 let TMP;
 
 before(() => {
-  assert.ok(fs.existsSync(path.join(BIN, 'bdinfo')), 'missing engine/bin/bdinfo (npm run engine)');
+  assert.ok(fs.existsSync(path.join(BIN, exe('bdinfo'))), `missing engine/bin/${exe('bdinfo')} (npm run engine)`);
   assert.ok(fs.existsSync(fx('bd_movie')), 'missing Blu-ray fixtures (npm run fixtures:bluray)');
   TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-bd-'));
 });
 
 function bdinfo(src) {
-  const r = spawnSync(path.join(BIN, 'bdinfo'), [src], { encoding: 'utf8', timeout: 60000 });
+  const r = spawnSync(path.join(BIN, exe('bdinfo')), [src], { encoding: 'utf8', timeout: 60000 });
   assert.equal(r.signal, null, `bdinfo crashed with ${r.signal}`);
   return { code: r.status, json: JSON.parse(r.stdout) };
 }
@@ -32,7 +33,7 @@ function bdinfo(src) {
 function ripBluray(src, titleNo, { select } = {}) {
   const { json } = bdinfo(src);
   const t = json.titles.find((x) => x.title === titleNo);
-  const probe = JSON.parse(execFileSync(path.join(BIN, 'ffprobe'), ['-v', 'error', '-playlist', String(t.playlist), '-i', `bluray:${src}`, '-show_streams', '-of', 'json']));
+  const probe = JSON.parse(execFileSync(path.join(BIN, exe('ffprobe')), ['-v', 'error', '-playlist', String(t.playlist), '-i', `bluray:${src}`, '-show_streams', '-of', 'json']));
   const langs = new Map([...t.audio, ...t.subtitles].map((x) => [x.pid, x.lang]));
   let streams = probe.streams.filter((s) => ['video', 'audio', 'subtitle'].includes(s.codec_type))
     .map((s) => ({ index: s.index, codec: s.codec_name, lang: langs.get(parseInt(s.id, 16)) }));
@@ -40,11 +41,11 @@ function ripBluray(src, titleNo, { select } = {}) {
   const out = path.join(TMP, `t${titleNo}-${Date.now()}.mkv`);
   const chapters = out + '.chapters.txt';
   fs.writeFileSync(chapters, lib.chaptersMetadata(t.chapters));
-  const r = spawnSync(path.join(BIN, 'ffmpeg'), lib.blurayRipArgs({ source: src, playlist: t.playlist, displayName: 'BD Test' }, streams, chapters, out), { encoding: 'utf8' });
+  const r = spawnSync(path.join(BIN, exe('ffmpeg')), lib.blurayRipArgs({ source: src, playlist: t.playlist, displayName: 'BD Test' }, streams, chapters, out), { encoding: 'utf8' });
   return { r, out, t, streams };
 }
-const probe = (f) => JSON.parse(execFileSync(path.join(ORACLE, 'ffprobe'), ['-v', 'error', '-show_streams', '-show_chapters', '-show_format', '-of', 'json', f]));
-const decoded = (f, spec) => execFileSync(path.join(ORACLE, 'ffmpeg'), ['-v', 'error', '-i', f, '-map', `0:${spec}`, '-f', 'md5', '-'], { encoding: 'utf8' }).trim();
+const probe = (f) => JSON.parse(execFileSync(path.join(ORACLE, exe('ffprobe')), ['-v', 'error', '-show_streams', '-show_chapters', '-show_format', '-of', 'json', f]));
+const decoded = (f, spec) => execFileSync(path.join(ORACLE, exe('ffmpeg')), ['-v', 'error', '-i', f, '-map', `0:${spec}`, '-f', 'md5', '-'], { encoding: 'utf8' }).trim();
 
 test('bdinfo: playlists, chapters, codecs, languages and PIDs', () => {
   const { code, json } = bdinfo(fx('bd_movie'));
@@ -115,7 +116,7 @@ test('Blu-ray rip from the ISO, with a track subset', () => {
 test('completeness check: the engine reads back the true video duration (film + early-ending subtitles)', () => {
   const { r, out } = ripBluray(fx('bd_movie'), 1);
   assert.equal(r.status, 0, r.stderr);
-  const p = JSON.parse(execFileSync(path.join(BIN, 'ffprobe'), ['-v', 'error', '-f', 'matroska', '-show_entries', 'stream=codec_type:stream_tags=DURATION', '-of', 'json', out]));
+  const p = JSON.parse(execFileSync(path.join(BIN, exe('ffprobe')), ['-v', 'error', '-f', 'matroska', '-show_entries', 'stream=codec_type:stream_tags=DURATION', '-of', 'json', out]));
   const secs = lib.outputVideoSeconds(p);
   assert.ok(Math.abs(secs - 90) < 0.5, `video ${secs}s`);
   assert.deepEqual(lib.ripVerdict({ code: 0, videoSeconds: secs, duration: 90.09 }), { ok: true });
