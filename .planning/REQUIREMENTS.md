@@ -79,7 +79,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 - [ ] **REL-02**: Windows builds and engine executables are signed with Azure Artifact Signing (OIDC, pinned signing module). [SF-4]
 - [ ] **REL-03**: Every release has build-provenance attestations, a keyless cosign-signed SHA256SUMS and an SBOM generated from the engine pins. Immutable releases are on. [SF-4]
 - [ ] **REL-04**: Every release attaches a GPL corresponding-source bundle (app source plus upstream engine tarballs plus patches), and the app ships third-party license notices. [R-13]
-- [ ] **REL-05**: Private vulnerability reporting is on, SECURITY.md has a fallback contact, and Dependabot alerts and updates are on. [SF-3]
+- [x] **REL-05**: Private vulnerability reporting is on, SECURITY.md has a fallback contact, and Dependabot alerts and updates are on. [SF-3]
 - [x] **REL-06**: All GitHub Actions are pinned by commit SHA, toolchains are pinned, `main` is branch-protected with required checks, and the dependency audit covers Electron. [SF-5]
 - [ ] **REL-07**: Releases before 1.0 are marked prerelease. A CHANGELOG is kept, and the release process is documented and followed.
 - [x] **REL-08**: The README no longer links directly to a libdvdcss DLL download. Setup guidance stays neutral and never ships or fetches decryption components.
@@ -184,7 +184,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-02 | Phase 2 | Pending |
 | REL-03 | Phase 2 | Pending |
 | REL-04 | Phase 2 | Pending |
-| REL-05 | Phase 1 | Pending |
+| REL-05 | Phase 1 | Complete |
 | REL-06 | Phase 1 | Complete |
 | REL-07 | Phase 8 | Pending |
 | REL-08 | Phase 1 | Complete |
