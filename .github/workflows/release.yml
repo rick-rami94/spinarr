@@ -46,10 +46,12 @@ jobs:
         with:
           persist-credentials: false
 
-      # No npm cache here on purpose (cache poisoning in a publishing workflow).
+      # No npm cache here on purpose (cache poisoning in a publishing workflow). setup-node v5+
+      # turns caching on automatically from package.json, so switch it off explicitly.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+          package-manager-cache: false
 
       # ---- engine (built natively on each OS: ffmpeg + scanners, static, with our patches) ----
       # Engine source tarballs are always downloaded fresh; engine/build.sh verifies their SHA-256.
