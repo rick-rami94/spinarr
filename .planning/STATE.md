@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-10-10)
 
 Phase: 01 (safety-gate-ci-baseline) — EXECUTING
 Plan: 10 of 10
-Status: Phase complete — ready for verification
+Status: Verification found gaps (SAFE-01 / CR-01) — gap closure needed
 Last activity: 2026-10-11
 
 Progress: [██████████] 100%
