@@ -25,6 +25,8 @@ function launch(name, i, env) {
         SPINARR_SCENARIO: name,
         SPINARR_LAUNCH: String(i),
         SPINARR_USER_DATA: env.userData,
+        // Hermetic home (D-22): key and cache folders resolve under the scenario's tmp dir.
+        SPINARR_TEST_HOME: env.home,
         SPINARR_RESULT: resultFile,
         E2E_OUT: env.outDir,
         E2E_SHOTS: SHOTS,
@@ -60,8 +62,9 @@ function launch(name, i, env) {
       continue;
     }
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `spinarr-e2e-${name}-`));
-    const env = { tmp, userData: path.join(tmp, 'userData'), outDir: path.join(tmp, 'out') };
+    const env = { tmp, userData: path.join(tmp, 'userData'), home: path.join(tmp, 'home'), outDir: path.join(tmp, 'out') };
     fs.mkdirSync(env.userData, { recursive: true });
+    fs.mkdirSync(env.home, { recursive: true });
     const started = Date.now();
     let r = { pass: true, notes: [] };
     try {
