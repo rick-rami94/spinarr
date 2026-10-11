@@ -87,7 +87,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 ### Quality & Documentation (QUAL)
 
 - [ ] **QUAL-01**: Code coverage (c8) is measured in CI for unit and engine tests, with a recorded baseline and no regression.
-- [ ] **QUAL-02**: e2e is hermetic: test runs never read the real user's AACS or dvdcss folders. A scenario covers the default `accurateChapters=false` path.
+- [x] **QUAL-02**: e2e is hermetic: test runs never read the real user's AACS or dvdcss folders. A scenario covers the default `accurateChapters=false` path.
 - [ ] **QUAL-03**: Every documentation discrepancy from the audit (DD-1..DD-11) is resolved. The build fails on non-system linkage, and the security-testing report is current.
 - [ ] **QUAL-04**: The hardware test matrix runs on the release candidate and is recorded in `docs/HARDWARE_TESTING.md`. It covers:
   - M-1..M-7
@@ -189,7 +189,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-07 | Phase 8 | Pending |
 | REL-08 | Phase 1 | Complete |
 | QUAL-01 | Phase 1 | Pending |
-| QUAL-02 | Phase 1 | Pending |
+| QUAL-02 | Phase 1 | Complete |
 | QUAL-03 | Phase 8 | Pending |
 | QUAL-04 | Phase 8 | Pending |
 

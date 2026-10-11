@@ -57,7 +57,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 01-08-PLAN.md — Hermetic key-dir scenario + CI real-home sentinel, accurateChapters=false e2e scenario
+- [x] 01-08-PLAN.md — Hermetic key-dir scenario + CI real-home sentinel, accurateChapters=false e2e scenario
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -190,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 7/10 | In Progress|  |
+| 1. Safety Gate & CI Baseline | 8/10 | In Progress|  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |

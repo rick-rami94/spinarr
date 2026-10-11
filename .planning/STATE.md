@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 1 context gathered
-last_updated: "2026-10-11T00:48:09.727Z"
+last_updated: "2026-10-11T00:57:09.450Z"
 last_activity: 2026-10-11
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-10)
 ## Current Position
 
 Phase: 01 (safety-gate-ci-baseline) — EXECUTING
-Plan: 5 of 10
+Plan: 9 of 10
 Status: Ready to execute
 Last activity: 2026-10-11
 
-Progress: [███████░░░] 70%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Recent decisions affecting current work:
 - [Roadmap]: SAFE-12 (safe-by-default renderer) is the first deliverable of Phase 7, before any new collector UI.
 - [Roadmap]: Release gate (REL-07, QUAL-03, QUAL-04, PLAT-04, PLAT-05) is the final phase.
 - [Phase 01]: 01-01: approve-all; milestone/v1.0 published, draft PR #2 open, private vuln reporting + Dependabot alerts/security updates enabled
+- [Phase 01]: 01-08: e2e hermeticity is proven at the platform level (keyDirs/cssCache/keydbPath under SPINARR_TEST_HOME, keydb false); the CI-only real-home KEYDB sentinel's banner check accepts no-libaacs, no-KEYDB or -1 (fixture AACS files fail before key lookup)
 
 ### Pending Todos
 
@@ -89,6 +90,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-11T00:48:09.715Z
-Stopped at: Phase 1 context gathered
+Last session: 2026-10-11T00:57:09.436Z
+Stopped at: Completed 01-08-PLAN.md
 Resume file: None
