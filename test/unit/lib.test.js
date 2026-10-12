@@ -346,3 +346,143 @@ test('blurayBlocker explains what is actually missing', () => {
   assert.match(lib.blurayBlocker(aacs(-6), k), /refused the AACS handshake/);
   assert.match(lib.blurayBlocker({ bdplus: true, bdplusHandled: false }, k), /BD\+/);
 });
+
+// ---------- mediumIdentity (SAFE-01 / CR-01 consent binding) ----------
+const idTmp = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), `spinarr-id-${tag}-`));
+const FIXED = new Date('2020-01-01T00:00:00Z');
+
+test('mediumIdentity: an unchanged ISO keeps the same file: identity string', () => {
+  const dir = idTmp('iso');
+  try {
+    const iso = path.join(dir, 'disc.iso');
+    fs.writeFileSync(iso, 'AAAA');
+    const a = lib.mediumIdentity(iso);
+    assert.equal(typeof a, 'string');
+    assert.ok(a.startsWith('file:'));
+    assert.equal(lib.mediumIdentity(iso), a);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: an ISO overwritten in place with different bytes changes identity', () => {
+  const dir = idTmp('isow');
+  try {
+    const iso = path.join(dir, 'disc.iso');
+    fs.writeFileSync(iso, 'AAAA');
+    const a = lib.mediumIdentity(iso);
+    fs.writeFileSync(iso, 'BBBBBBBB');
+    assert.notEqual(lib.mediumIdentity(iso), a);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: an ISO replaced by rename (same size, same mtime) changes identity', () => {
+  const dir = idTmp('isor');
+  try {
+    const iso = path.join(dir, 'disc.iso');
+    const tmp = path.join(dir, 'new.tmp');
+    fs.writeFileSync(iso, 'AAAA');
+    fs.utimesSync(iso, FIXED, FIXED);
+    const a = lib.mediumIdentity(iso);
+    fs.writeFileSync(tmp, 'BBBB');
+    fs.utimesSync(tmp, FIXED, FIXED);
+    fs.renameSync(tmp, iso);
+    assert.notEqual(lib.mediumIdentity(iso), a);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+function makeDvd(root) {
+  fs.mkdirSync(path.join(root, 'VIDEO_TS'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'VIDEO_TS', 'VIDEO_TS.IFO'), 'IFO');
+  fs.writeFileSync(path.join(root, 'VIDEO_TS', 'VTS_01_1.VOB'), 'VOBDATA');
+  for (const f of ['VIDEO_TS.IFO', 'VTS_01_1.VOB']) fs.utimesSync(path.join(root, 'VIDEO_TS', f), FIXED, FIXED);
+}
+
+test('mediumIdentity: a DVD folder is stable and changes when a file grows or the tree is recreated', () => {
+  const dir = idTmp('dvd');
+  try {
+    const root = path.join(dir, 'MOVIE');
+    makeDvd(root);
+    const a = lib.mediumIdentity(root);
+    assert.ok(a.startsWith('dvd:'));
+    assert.equal(lib.mediumIdentity(root), a);
+    fs.appendFileSync(path.join(root, 'VIDEO_TS', 'VTS_01_1.VOB'), 'X');
+    const b = lib.mediumIdentity(root);
+    assert.notEqual(b, a);
+    fs.rmSync(root, { recursive: true, force: true });
+    makeDvd(root);
+    fs.appendFileSync(path.join(root, 'VIDEO_TS', 'VTS_01_1.VOB'), 'X');
+    fs.utimesSync(path.join(root, 'VIDEO_TS', 'VTS_01_1.VOB'), FIXED, FIXED);
+    assert.notEqual(lib.mediumIdentity(root), b);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: a Blu-ray folder is stable, tolerates a missing CLIPINF, and changes with a playlist', () => {
+  const dir = idTmp('bd');
+  try {
+    const root = path.join(dir, 'BD');
+    fs.mkdirSync(path.join(root, 'BDMV', 'PLAYLIST'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'BDMV', 'STREAM'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'BDMV', 'index.bdmv'), 'INDX');
+    fs.writeFileSync(path.join(root, 'BDMV', 'PLAYLIST', '00000.mpls'), 'MPLS');
+    fs.writeFileSync(path.join(root, 'BDMV', 'STREAM', '00000.m2ts'), 'M2TS');
+    const a = lib.mediumIdentity(root);
+    assert.ok(a.startsWith('bluray:'));
+    assert.equal(lib.mediumIdentity(root), a);
+    fs.writeFileSync(path.join(root, 'BDMV', 'PLAYLIST', '00000.mpls'), 'MPLS-LONGER');
+    assert.notEqual(lib.mediumIdentity(root), a);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: a different device at the same path (drive-letter reuse) changes identity', () => {
+  const dir = idTmp('dev');
+  try {
+    const root = path.join(dir, 'MOVIE');
+    makeDvd(root);
+    const a = lib.mediumIdentity(root);
+    const stat = (p, o) => {
+      const st = fs.statSync(p, o);
+      if (p !== root || !o || !o.bigint) return st;
+      return new Proxy(st, { get: (t, k) => (k === 'dev' ? t.dev + 12345n : (typeof t[k] === 'function' ? t[k].bind(t) : t[k])) });
+    };
+    assert.notEqual(lib.mediumIdentity(root, { stat }), a);
+    // ISO file with a swapped device too
+    const iso = path.join(dir, 'disc.iso');
+    fs.writeFileSync(iso, 'AAAA');
+    const isoStat = (p, o) => {
+      const st = fs.statSync(p, o);
+      return new Proxy(st, { get: (t, k) => (k === 'dev' ? t.dev + 1n : (typeof t[k] === 'function' ? t[k].bind(t) : t[k])) });
+    };
+    assert.notEqual(lib.mediumIdentity(iso, { stat: isoStat }), lib.mediumIdentity(iso));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: a removed source or a folder that lost VIDEO_TS/BDMV throws', () => {
+  const dir = idTmp('gone');
+  try {
+    const root = path.join(dir, 'MOVIE');
+    makeDvd(root);
+    lib.mediumIdentity(root);
+    fs.rmSync(path.join(root, 'VIDEO_TS'), { recursive: true, force: true });
+    assert.throws(() => lib.mediumIdentity(root), /Source changed/);
+    fs.rmSync(root, { recursive: true, force: true });
+    assert.throws(() => lib.mediumIdentity(root));
+    assert.throws(() => lib.mediumIdentity(path.join(dir, 'missing.iso')));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: an entry that vanishes mid-walk is recorded, and the stat walk is capped', () => {
+  const dir = idTmp('cap');
+  try {
+    const root = path.join(dir, 'MOVIE');
+    makeDvd(root);
+    const vob = path.join(root, 'VIDEO_TS', 'VTS_01_1.VOB');
+    const flaky = (p, o) => { if (p === vob) throw new Error('ENOENT'); return fs.statSync(p, o); };
+    assert.notEqual(lib.mediumIdentity(root, { stat: flaky }), lib.mediumIdentity(root));
+    // More names than the cap: names beyond it still count (adding one changes the result)
+    const names = Array.from({ length: 5002 }, (_, i) => `F${String(i).padStart(5, '0')}.VOB`);
+    const readdir = (p) => (p.endsWith('VIDEO_TS') ? names : fs.readdirSync(p));
+    const big = (p, o) => (p.startsWith(path.join(root, 'VIDEO_TS') + path.sep) ? fs.statSync(path.join(root, 'VIDEO_TS', 'VIDEO_TS.IFO'), o) : fs.statSync(p, o));
+    const x = lib.mediumIdentity(root, { stat: big, readdir });
+    names.push('F99999.VOB');
+    assert.notEqual(lib.mediumIdentity(root, { stat: big, readdir }), x);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
