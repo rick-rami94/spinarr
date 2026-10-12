@@ -94,6 +94,15 @@ test('the sha1 pass never calls pwsh, even on a required-signing build', async (
   assert.equal(calls.length, 0);
 });
 
+test('package.json routes Windows signing through the hook, never azureSignOptions', () => {
+  const pkg = require('../../package.json');
+  const b = pkg.build;
+  assert.equal(b.win.signtoolOptions.sign, 'build/sign-win.js');
+  assert.deepEqual(b.win.signtoolOptions.signingHashAlgorithms, ['sha256']);
+  assert.ok(!('azureSignOptions' in b.win), 'azureSignOptions would install an unpinned module');
+  assert.ok(!JSON.stringify(pkg).includes('forceCodeSigning'), 'forceCodeSigning is passed by CI on signed tag builds only (D-07)');
+});
+
 test('sign-win.ps1 imports the pinned module and never installs one', () => {
   const ps = fs.readFileSync(PS1, 'utf8');
   assert.ok(ps.includes('Import-Module ArtifactSigning -RequiredVersion $ModuleVersion'));

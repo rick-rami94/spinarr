@@ -91,6 +91,19 @@ test('wrapOptions does not mutate the original optionsForFile', () => {
   assert.equal(opts.optionsForFile, original);
 });
 
+test('package.json routes mac signing through the hook with the split entitlements', () => {
+  const b = require('../../package.json').build;
+  assert.equal(b.mac.sign, 'build/sign-mac.js');
+  assert.equal(b.mac.hardenedRuntime, true);
+  assert.equal(b.mac.entitlements, 'build/entitlements.mac.plist');
+  assert.equal(b.mac.entitlementsInherit, 'build/entitlements.mac.inherit.plist');
+  assert.ok(!/engine/.test(b.mac.entitlements) && !/engine/.test(b.mac.entitlementsInherit));
+  assert.equal(b.dmg.sign, true);
+  // forceCodeSigning is passed by CI on signed tag builds only (D-07), never baked in.
+  assert.ok(!('forceCodeSigning' in b) && !('forceCodeSigning' in b.mac));
+  assert.ok(!('notarize' in b.mac));
+});
+
 test('requiring the hook does not load @electron/osx-sign', () => {
   const loaded = Object.keys(require.cache).some((k) => k.includes(`${path.sep}@electron${path.sep}osx-sign${path.sep}`));
   assert.equal(loaded, false);
