@@ -13,7 +13,7 @@ Spinarr v0.1.3 already proves the hard part: bit-exact remuxing with a patched, 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Safety Gate & CI Baseline** - No unsandboxed auto-scan anywhere, plus quick wins: vuln reporting, SHA-pinned CI, neutral README, hermetic e2e, coverage baseline, full Windows CI (completed 2026-10-12)
+- [ ] **Phase 1: Safety Gate & CI Baseline** - No unsandboxed auto-scan anywhere, plus quick wins: vuln reporting, SHA-pinned CI, neutral README, hermetic e2e, coverage baseline, full Windows CI
 - [ ] **Phase 2: Trust & Distribution** - Signed and notarized installers, provenance attestations, signed checksums, SBOM, GPL source bundle, fuzzing in CI (parallel-capable track)
 - [ ] **Phase 3: Rip Foundations** - Disc-ID scan catalog, main-process-only scan truth, staged atomic durable output, and a journaled queue state machine
 - [ ] **Phase 4: Sandbox Everywhere** - Windows AppContainer spike first, then deny-default engine sandboxes on macOS, Linux and Windows with honest status reporting

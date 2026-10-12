@@ -136,7 +136,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SAFE-01 | Phase 1 | In Progress (gap CR-01 fixed in 01-11/01-12; awaiting re-verification) |
+| SAFE-01 | Phase 1 | In Progress (identity coverage gap fixed in 01-13/01-14; awaiting re-verification) |
 | SAFE-02 | Phase 4 | Pending |
 | SAFE-03 | Phase 4 | Pending |
 | SAFE-04 | Phase 4 | Pending |
