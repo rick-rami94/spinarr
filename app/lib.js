@@ -209,17 +209,26 @@ function sourceKind(dir, { stat = fs.statSync } = {}) {
 
 // Filesystem identity for the SAFE-01 consent binding (CR-01); the disc-ID catalog is Phase 3.
 // A string that changes when the medium at `source` changes: swapped, overwritten, replaced or
-// remounted. It fingerprints every file the engine's parsers can open from a disc folder (ino,
-// size, mtime). No atime/ctime: plain reads and xattr writes (quarantine, Spotlight) change those.
-// OS metadata names that no parser can open are ignored (see identityIgnored).
+// remounted. It fingerprints the folders the engine's parsers read (ino, size, mtime per file);
+// see SECURITY.md for what it cannot catch (lazy re-reads during a rip, crafted playlist clip
+// names, same-size rewrites with restored timestamps), which the engine sandbox (SF-1) closes.
+// No atime/ctime: plain reads and xattr writes (quarantine, Spotlight) change those.
+// OS metadata names are ignored (see identityIgnored).
 //
 // 20000 leaves margin over real Blu-ray trees (PLAYLIST, CLIPINF and STREAM each rarely exceed
 // ~2000 entries; BACKUP duplicates PLAYLIST and CLIPINF). Past the cap the walk throws: that is
 // the fail-closed choice, because main.js identityOf turns a throw into null, which never equals
-// the stored identity, so probe/rip refuse. A symlink loop ends at the cap or when readdir fails
-// (ENAMETOOLONG/ELOOP -> `|missing`).
+// the stored identity, so probe/rip refuse.
+//
+// Only ENOENT/ENOTDIR mean a folder or file is absent. A directory that exists but can't be
+// listed or stat'd (EACCES/EPERM/EIO/ELOOP/...) throws IDENTITY_UNREADABLE: libbluray opens files
+// by name, which needs only search permission, so a traverse-only BDMV is still readable by the
+// engine and must not collapse to a fixed `|missing` line (CR-01 round 3). A symlink loop ends at
+// the cap or on ELOOP; both throw.
 const MAX_IDENTITY_ENTRIES = 20000;
 const IDENTITY_TOO_MANY = 'This disc has too many files to check safely.';
+const IDENTITY_UNREADABLE = 'Spinarr can\'t read every folder on this disc, so it can\'t check it safely.';
+const absentCode = (err) => !!err && (err.code === 'ENOENT' || err.code === 'ENOTDIR');
 
 // What each parser can open from a disc folder:
 // - DVD (libdvdread 7.1.1, dvd_reader.c): findDVDFile strips the /VIDEO_TS/ prefix and calls
@@ -239,8 +248,9 @@ const IDENTITY_WALK = {
 // Names no parser can open, so OS metadata never causes a spurious refusal (WR-08).
 // - Dot-prefixed (.DS_Store, AppleDouble ._*, .Spotlight-V100, .Trashes, .fseventsd): libdvdread's
 //   strcasecmp names never start with '.'; libbluray's only enumerations skip '.' names
-//   (navigation.c:430 for PLAYLIST, meta_parse.c:165 for META/DL) and it opens fixed names
-//   elsewhere; libaacs names are fixed.
+//   (navigation.c:430 for PLAYLIST, meta_parse.c:165 for META/DL); libaacs names are fixed.
+//   Clip names, though, come from playlist bytes, so a crafted MPLS can name a dot-file this
+//   skips (WR-08 residual: documented in SECURITY.md, closed by the engine sandbox, SF-1).
 // - Thumbs.db / ehthumbs.db / desktop.ini: DVD only. navigation.c:443 calls mpls_get on EVERY
 //   other PLAYLIST entry, so for Blu-ray those names stay fingerprinted.
 const DVD_IGNORED = new Set(['thumbs.db', 'ehthumbs.db', 'desktop.ini']);
@@ -263,7 +273,9 @@ function mediumIdentity(source, { stat = fs.statSync, readdir = fs.readdirSync }
     if (recurse) {
       // The subtree's own line, so creating AACS/ or BDSVM/ later changes identity.
       let t = null;
-      try { t = big(abs(top)); } catch {}
+      try { t = big(abs(top)); } catch (err) {
+        if (!absentCode(err)) throw new Error(IDENTITY_UNREADABLE);
+      }
       if (!t || !t.isDirectory()) { lines.push(`${top}|missing`); continue; }
       lines.push(`${top}|d|${t.ino}`);
     }
@@ -271,13 +283,21 @@ function mediumIdentity(source, { stat = fs.statSync, readdir = fs.readdirSync }
     while (queue.length) {
       const rel = queue.shift();
       let names;
-      try { names = readdir(abs(rel)); } catch { lines.push(`${rel}|missing`); continue; }
+      try { names = readdir(abs(rel)); } catch (err) {
+        if (!absentCode(err)) throw new Error(IDENTITY_UNREADABLE);
+        lines.push(`${rel}|missing`);
+        continue;
+      }
       for (const name of [...names].map(String).sort()) {
         if (identityIgnored(kind, name)) continue;
         if (++statted > MAX_IDENTITY_ENTRIES) throw new Error(IDENTITY_TOO_MANY);
         const relName = rel ? `${rel}/${name}` : name;
         let e;
-        try { e = big(abs(relName)); } catch { lines.push(`${relName}|gone`); continue; }
+        try { e = big(abs(relName)); } catch (err) {
+          if (!absentCode(err)) throw new Error(IDENTITY_UNREADABLE);
+          lines.push(`${relName}|gone`);
+          continue;
+        }
         if (e.isDirectory()) {
           // Inode only: a directory's size/mtime move when OS metadata is written inside it, and
           // the contents of every directory a parser reads are walked anyway.
@@ -295,6 +315,15 @@ function mediumIdentity(source, { stat = fs.statSync, readdir = fs.readdirSync }
 // Shared refusal wording: both start with "Scan the disc again" (renderer + e2e match on it).
 const RESCAN_NOT_SCANNED = 'Scan the disc again before ripping';
 const RESCAN_CHANGED = 'Scan the disc again. It was removed or changed since it was scanned.';
+
+// The refusal for a failed identity check: names the real reason when the walk itself refused
+// (too many files, unreadable folder), otherwise the generic "changed" wording (IN-07).
+function identityRefusal(err) {
+  if (err && (err.message === IDENTITY_TOO_MANY || err.message === IDENTITY_UNREADABLE)) {
+    return `Scan the disc again. ${err.message}`;
+  }
+  return RESCAN_CHANGED;
+}
 
 // Why an encrypted Blu-ray can't be ripped (from bdinfo's encryption report), or null if it
 // can. aacsError is libbluray's BD_AACS_* code, so the message says what's actually wrong.
@@ -414,5 +443,6 @@ module.exports = {
   sourceKind, chaptersMetadata, blurayRipArgs, outputVideoSeconds,
   SANDBOX_PROFILE, sandboxed, volumeKind,
   validateSource, validateTitle, validateJob, validateScanOptions, scanGate, SANDBOX_OFF, sanitizeSettingsPatch, SKINS,
-  mediumIdentity, IDENTITY_TOO_MANY, MAX_IDENTITY_ENTRIES, RESCAN_NOT_SCANNED, RESCAN_CHANGED,
+  mediumIdentity, IDENTITY_TOO_MANY, IDENTITY_UNREADABLE, identityRefusal, MAX_IDENTITY_ENTRIES,
+  RESCAN_NOT_SCANNED, RESCAN_CHANGED,
 };

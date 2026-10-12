@@ -195,7 +195,10 @@ function identityOf(src) {
 
 async function scan(source) {
   let before;
-  try { before = lib.mediumIdentity(source); } catch (e) { throw new Error(e && e.message === lib.IDENTITY_TOO_MANY ? lib.IDENTITY_TOO_MANY : 'Source not found'); }
+  try { before = lib.mediumIdentity(source); } catch (e) {
+    const why = e && e.message;
+    throw new Error(why === lib.IDENTITY_TOO_MANY || why === lib.IDENTITY_UNREADABLE ? why : 'Source not found');
+  }
   const kind = lib.sourceKind(source);
   let json;
   if (kind === 'bluray') json = await readInfo('bdinfo', source);
@@ -236,7 +239,13 @@ function scannedSame(src) {
 function assertScanGate(src) {
   if (sandboxTrusted()) return;
   if (!scans.has(src)) throw new Error(lib.RESCAN_NOT_SCANNED);
-  if (!scannedSame(src)) throw new Error(lib.RESCAN_CHANGED);
+  let now = null;
+  let failure = null;
+  try { now = lib.mediumIdentity(src); } catch (e) { failure = e; }
+  if (now !== scans.get(src).identity) {
+    scans.delete(src);
+    throw new Error(lib.identityRefusal(failure)); // always starts with "Scan the disc again"
+  }
 }
 
 // On any volume change, forget scans of media that vanished or changed. Runs whether or not
