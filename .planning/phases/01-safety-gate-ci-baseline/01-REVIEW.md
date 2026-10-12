@@ -1,21 +1,15 @@
 ---
 phase: 01-safety-gate-ci-baseline
-reviewed: 2026-10-11T00:00:00Z
+reviewed: 2026-10-12T12:06:21Z
 depth: standard
-files_reviewed: 31
+files_reviewed: 22
 files_reviewed_list:
-  - .c8rc.json
-  - .gitattributes
-  - .github/ISSUE_TEMPLATE/config.yml
   - .github/dependabot.yml
+  - .github/ISSUE_TEMPLATE/config.yml
   - .github/requirements-audit.txt
   - .github/requirements-build.txt
   - .github/workflows/ci.yml
   - .github/workflows/release.yml
-  - .gitignore
-  - .nvmrc
-  - README.md
-  - SECURITY.md
   - app/lib.js
   - app/main.js
   - app/platform.js
@@ -24,180 +18,210 @@ files_reviewed_list:
   - app/renderer/styles.css
   - docs/ENCRYPTED_DISCS.md
   - docs/SECURITY_TESTING.md
-  - package.json
   - test/e2e/harness.js
   - test/e2e/run.js
   - test/e2e/scenarios.js
-  - test/engine/bluray.test.js
-  - test/engine/engine.test.js
-  - test/security/corpus.test.js
   - test/unit/gate-static.test.js
   - test/unit/lib.test.js
   - test/unit/neutrality.test.js
   - test/unit/platform.test.js
+  - SECURITY.md
 findings:
   critical: 1
-  warning: 8
-  info: 4
-  total: 13
+  warning: 10
+  info: 5
+  total: 16
 status: issues_found
 ---
 
-# Phase 01: Code Review Report
+# Phase 01: Code Review Report (re-review after gap closure 01-11 / 01-12)
 
-**Reviewed:** 2026-10-11
-**Depth:** standard (diff 830e90a..HEAD)
-**Files Reviewed:** 31
+**Reviewed:** 2026-10-12T12:06:21Z
+**Depth:** standard (gap-closure diff 37f1ea7..HEAD, plus carry-forward of the prior review)
+**Files Reviewed:** 22
 **Status:** issues_found
 
 ## Summary
 
-The SAFE-01 `scan` handler is solid. It accepts consent only as a literal `true`, it fails closed, and it asks again on every call. The renderer chokepoint (`requestScan` → `confirmScan` → `loadSource`) covers all six entry points I traced: insert, boot, drop, picker, sidebar click, and the KEYDB retry.
+Gap closure 01-11/01-12 is a real improvement. Consent is no longer keyed only by path. `assertScanGate` runs at every engine spawn point I could find: `probe`, `enqueue`, the top of `pump()`, `prepareBluray`, and `start()` immediately before `spawn`. `scan()` brackets the scanner run with a before/after identity check. The error paths fail closed: a missing or changed identity drops the `scans` entry and refuses. I found no unsandboxed engine spawn that skips the gate. The post-rip `ffprobe` only reads the output file, which came from an already-gated rip.
 
-The problem is the other two IPC handlers. `probe` and `rip` decide whether a disc may be parsed by checking `scans.has(path)`. That check is keyed by **path, not by disc identity**, and the cache is never cleared on eject. Once you consent for `D:\`, any later disc in that drive can be probed or ripped without the sandbox and without another prompt. The same goes for any later contents of the same `.iso` path. This contradicts SECURITY.md ("asks before every scan and never remembers the answer"). I rate it a BLOCKER.
+The new gate's weak point is `lib.mediumIdentity` itself. It fingerprints only some of the files the parsers actually read:
 
-`SPINARR_TEST_HOME` is correctly gated on `!app.isPackaged`, as are every other test hook in `main.js`. I found no leak into packaged builds.
+- libdvdread searches the source **root** for `*.IFO` / `*.VOB` before it looks in `VIDEO_TS/` (`dvd_reader.c:974`, case-insensitive). The identity records only the root's `dev|ino`.
+- For Blu-ray, `BDMV/BACKUP/**`, `AACS/` and `CERTIFICATE/` are never fingerprinted. libbluray and libaacs parse all three.
+- Entries past the 5000 cap are counted but never stat'd.
 
-The CI-only KEYDB sentinel cannot overwrite an existing user file. It writes with `flag: 'wx'` and only unlinks the path it created. But it can be left behind in the real home folder, and on today's runners its assertion proves nothing. No CI runner installs libaacs, so the key file is never actually read.
+I checked this with `node`. Adding `vts_01_0.ifo` to a consented folder's root, or rewriting `BDMV/BACKUP/PLAYLIST/00000.mpls` and `AACS/Unit_Key_RO.inf`, leaves the identity byte-for-byte unchanged. So the folder variant of the prior CR-01 "contents changed at the same path" scenario still gets past the gate unsandboxed. That contradicts the new SECURITY.md text, so I rate it a BLOCKER (CR-01 below).
 
-The workflows are pinned and least-privilege. Two things are off: signing secrets reach PR-triggered builds, and the "restores NO caches" claim in `release.yml` probably isn't true for `setup-msys2`.
+The renderer, workflows and e2e runner did not change in this gap closure. Every prior renderer, CI and sentinel finding is therefore still open and carried forward. I also added three new warnings on the new code: the identity changes on harmless edits, stale scans are reused when the sandbox is on, and the swap e2e passes for the wrong reason.
+
+### Status of prior findings (01-REVIEW.md of 2026-10-11)
+
+| Prior ID | Title | Status |
+|---|---|---|
+| CR-01 | Probe/rip consent tied to a path, not a disc | **RESOLVED** for what was reported: drive-letter reuse, queued jobs, overwritten images, and renderer callers on a changed path are all refused now. A **residual bypass** remains through files the identity doesn't cover; it is tracked as new **CR-01** |
+| WR-01 | Consent comes from the renderer (`userConfirmed` over IPC) | **STILL OPEN**, carried as WR-01 |
+| WR-02 | Prompt not cleared when a non-`/Volumes/` source disappears; Windows prompt names the drive, not the disc | **STILL OPEN**, carried as WR-02 (now the main path-keyed residue: consent is captured for whatever is at the path at click time) |
+| WR-03 | A stale scan error overwrites the current source's state | **STILL OPEN**, carried as WR-03 |
+| WR-04 | The CI sentinel never exercises libaacs | **STILL OPEN**, carried as WR-04 |
+| WR-05 | The sentinel can be left in a real aacs folder (signals, `CI=true`) | **STILL OPEN**, carried as WR-05 |
+| WR-06 | Signing secrets exposed to PR-triggered release builds | **STILL OPEN**, carried as WR-06 |
+| WR-07 | `setup-msys2` caches by default despite the "NO caches" claim | **STILL OPEN**, carried as WR-07 |
+| WR-08 | `pump()` doesn't re-gate before spawning | **RESOLVED**: gated in `pump()` (main.js:350), `prepareBluray` (373) and `start()` (391) |
+| IN-01 | The Electron advisory step fails open | STILL OPEN (IN-01) |
+| IN-02 | The static chokepoint test is easy to sidestep | STILL OPEN (IN-02) |
+| IN-03 | The `sec_gate_ipc` refusal doesn't check why | **RESOLVED**: it now matches `/Scan the disc again/` |
+| IN-04 | `SPINARR_TEST_HOME` accepts relative paths | STILL OPEN (IN-03) |
+
+## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Probe/rip consent is tied to a path, not a disc, so swapping the disc skips the SAFE-01 gate
+### CR-01: The medium identity skips files the parsers read, so in-place changes to a consented folder are still parsed unsandboxed
 
-**File:** `app/main.js:183-211, 274, 447-451` (also `test/e2e/scenarios.js` `sec_gate_ipc`, `SECURITY.md`)
-**Issue:** With the sandbox off, `probe` and `enqueue` only check `scans.has(src)`. `scans` is a `Map` keyed by the normalized source path. It is filled on a consented scan and only trimmed when it passes 50 entries. Nothing removes an entry when the volume is ejected or the image file changes.
+**File:** `app/lib.js:213-239` (used by `app/main.js:192-246`), `SECURITY.md:39-42`
+**Issue:** `mediumIdentity` for a folder hashes `root|dev|ino` plus one listing per directory in `IDENTITY_DIRS`: `VIDEO_TS` for DVD, and `BDMV`, `BDMV/PLAYLIST`, `BDMV/CLIPINF`, `BDMV/STREAM` for Blu-ray. The engine reads more than that.
 
-For DVDs, `probeStreams` and `ripArgs` don't use the cached scan at all. They run `ffprobe -f dvdvideo` and `ffmpeg` straight on whatever is at the path now. Those are the same untrusted parsers the gate exists to protect.
+1. **DVD root-first lookup.** Both `dvdinfo` and ffmpeg's `dvdvideo` demuxer go through libdvdread. Its `findDVDFile` calls `findDirFile(dvd, dvd->rd->path_root, nodirfile, …)` **first** and falls back to `<root>/VIDEO_TS/` only when nothing matches (`engine/deps/libdvdread-7.1.1/src/dvd_reader.c:974-992`). `findDirFile` compares names with `strcasecmp`. So a `VTS_01_0.IFO` or `vts_01_1.vob` dropped into the source root replaces the real file for every later probe and rip. The root's mtime and listing are not in the identity. If `VIDEO_TS` lacks a file, libdvdread also falls back to a lowercase `video_ts/`, which isn't covered either.
+2. **Blu-ray subtrees.** libbluray re-reads `BDMV/BACKUP/{index.bdmv,PLAYLIST,CLIPINF}` when the primary fails to parse (`mpls_parse.c:1179`, `clpi_parse.c:865`, `index_parse.c:317`). It reads `CERTIFICATE/[BACKUP/]id.bdmv` (`bdid_parse.c:116`). libaacs parses `AACS/*`. None of these is fingerprinted. The `BDMV` listing does include the `BACKUP` directory entry's own mtime, but that changes only when a direct child is added or removed. It does not change when `BACKUP/PLAYLIST/00000.mpls` is rewritten in place.
+3. **Cap.** Past `MAX_IDENTITY_ENTRIES`, entries are only counted (`+N`). A folder padded with 5000 dummy names that sort first (for example in `BDMV/`) leaves every playlist, clip and stream outside the fingerprint, so in-place edits to them go unnoticed.
 
-Concrete paths with no second prompt:
-
-1. **Windows (always sandbox-off), drive letter reused.** The user consents to disc A at `D:\` and rips. They swap in disc B while a rip from another drive or image is running. `onDrives` skips `requestScan` because something is ripping, and the `sourceGone` cleanup only matches `/Volumes/`. So `state.disc` still shows A's titles with `state.source === 'D:\\'`. Clicking Rip calls `enqueue`, `scans.has('D:\\')` is true, and ffmpeg parses disc B unsandboxed.
-2. **Queued jobs outlive a disc swap.** Jobs queued against `D:\` run later, against whatever disc is in the drive by then. The gate is checked only at enqueue time.
-3. **Image files.** After consent for `~/Downloads/x.iso`, overwriting that file (re-download, sync client, network share) lets `probe` and `rip` parse the new bytes without a prompt.
-4. **Any renderer-side caller.** Any renderer code can call `spinarr.probe` or `spinarr.rip` on an already-consented path without going through `requestScan`. The main-process check that SECURITY.md describes is the only barrier, and it is satisfied.
-
-`sec_gate_ipc` asserts `probe works once the source was scanned with consent`, which bakes path-keyed consent into the tests. No scenario checks that `probe` or `rip` are refused after an eject and re-insert.
-
-**Fix:** Tie consent to the scanned medium and clear it when the medium changes:
-```js
-// on scan: record identity
-const st = fs.statSync(source);
-scans.set(source, { ...result, id: `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}` });
-
-// shared check for probe/enqueue (and re-check in pump() before spawning)
-function assertScannedSame(src) {
-  const disc = scans.get(src);
-  if (!disc) throw new Error('Scan the disc first');
-  if (!sandboxTrusted()) {
-    const st = fs.statSync(src);
-    if (disc.id !== `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}`) { scans.delete(src); throw new Error('Scan the disc again'); }
-  }
-  return disc;
-}
-
-// in watchVolumes' onChange: drop scans whose path vanished or changed
-for (const k of scans.keys()) { try { /* compare id */ } catch { scans.delete(k); } }
+Verified locally:
 ```
-A volume serial number, or a hash of `VIDEO_TS.IFO` / `index.bdmv`, identifies a disc more reliably than `dev:ino` on Windows. Also re-check identity in `pump()` before `start()` so queued jobs can't run against a swapped disc. Add an e2e scenario: consent → `fakeEject` → swap the fixture at the same path → `spinarr.probe` and `spinarr.rip` must be refused.
+root-level IFO added, identity same: true
+BACKUP+AACS rewritten, identity same: true
+```
+Precondition: write access to the consented folder between consent and probe/rip. Examples: a rip folder on a NAS share, a sync-client folder, or a downloaded `VIDEO_TS` tree. That is the same attacker capability as the prior CR-01 scenario 3. SECURITY.md:39 now promises that a disc "swapped ... in the same ... folder" or "changed since" is refused, and for these files it is not. On Windows, where the gate is always on, this turns a writable media share into unsandboxed native parsing with no prompt.
+**Fix:** Fingerprint everything the engine can open, and fail closed when the walk can't be completed:
+```js
+const IDENTITY_DIRS = {
+  // libdvdread looks in the root first, then VIDEO_TS, then video_ts
+  dvd: ['', 'VIDEO_TS', 'video_ts'],
+  bluray: ['', 'BDMV', 'BDMV/PLAYLIST', 'BDMV/CLIPINF', 'BDMV/STREAM',
+           'BDMV/BACKUP', 'BDMV/BACKUP/PLAYLIST', 'BDMV/BACKUP/CLIPINF',
+           'AACS', 'AACS/DUPLICATE', 'CERTIFICATE', 'CERTIFICATE/BACKUP'],
+};
+// rel '' => the source root itself (path.join(source))
+...
+if (statted >= MAX_IDENTITY_ENTRIES) throw new Error('Too many files to verify this disc');
+```
+Throwing at the cap is safe: no real disc has 5000 entries in those directories, and `identityOf` turns the throw into a refusal. Better still, also hash the **contents** of the small control files the parsers trust: `*.IFO`/`*.BUP` (KB each), `index.bdmv`, `MovieObject.bdmv`, `*.mpls`, `*.clpi`. Then a same-size, mtime-restored edit can't pass either. Add unit tests for a root-level `.IFO`, a rewritten `BDMV/BACKUP/PLAYLIST/*.mpls`, a rewritten `AACS/*`, and the cap now throwing. Also add an e2e step to `sec_gate_swap` that drops a root-level IFO into the consented folder and expects `probe` to be refused.
 
 ## Warnings
 
-### WR-01: Consent comes from the renderer, so a compromised renderer turns into unsandboxed native parsing
+### WR-01: Consent comes from the renderer, so a compromised renderer turns into unsandboxed native parsing (carried, STILL OPEN)
 
-**File:** `app/main.js:440-446`, `app/lib.js:528-532`
-**Issue:** `userConfirmed: true` is a plain IPC argument. Main cannot tell a real "Scan anyway" click from injected script calling `spinarr.scan(p, { userConfirmed: true })`. SECURITY.md admits this limit. Still, the core value is "opening a disc can never compromise the user's computer", and disc labels and names are rendered into the DOM. One XSS regression would turn into running the C parsers outside the sandbox on any path that passes `validateSource`.
-**Fix:** Ask for consent in the main process with a native `dialog.showMessageBox(win, { type: 'warning', buttons: ['Scan anyway', 'Not now'], cancelId: 1, defaultId: 1, message: ... })` when `!sandboxTrusted()`. Keep the renderer banner as a pre-prompt only, and drop `userConfirmed` from the IPC contract.
+**File:** `app/main.js:483-489`, `app/lib.js:304-316`
+**Issue:** Unchanged. `userConfirmed: true` is still a plain IPC argument, and main can't tell a real "Scan anyway" click from injected script. The new identity binding limits what a consent covers, but it does nothing about who gives it.
+**Fix:** As before: when `!sandboxTrusted()`, ask with a native `dialog.showMessageBox(win, { type: 'warning', buttons: ['Scan anyway', 'Not now'], cancelId: 1, defaultId: 1 })` in main, and drop `userConfirmed` from the IPC contract.
 
-### WR-02: The prompt isn't cleared when a non-`/Volumes/` source disappears, and on Windows it names the drive, not the disc
+### WR-02: The prompt survives an eject on Windows/Linux, so "Scan anyway" binds consent to a disc the user never saw (carried, STILL OPEN)
 
-**File:** `app/renderer/app.js:757-764, 135`
-**Issue:** `sourceGone` only matches `state.source?.startsWith('/Volumes/')`. So on Windows and Linux, `pendingScan` (and a stale `state.disc`) survive an eject. If the replacement disc arrives during a rip, `requestScan` is skipped and the old "Scan this disc?" banner stays up. "Scan anyway" then scans the new disc, which the user never saw named. On Windows, `baseName('D:\\')` renders as `D:`, which says nothing about which disc is being trusted.
-**Fix:** Compute `sourceGone` for every OS as "the current source was a listed drive and no longer is":
-```js
-const wasDrive = state.drives.discs.some((d) => d.path === state.source);
-const sourceGone = wasDrive && !drives.discs.some((d) => d.path === state.source);
-```
-(Check this before `state.drives = drives` runs.) Show the volume label (`d.name`) in the prompt for drive sources.
-
-### WR-03: A stale scan error overwrites the current source's state
-
-**File:** `app/renderer/app.js:460-470`
-**Issue:** The success branch checks `state.source !== src`, but the `catch` branch doesn't, except for the `SANDBOX_OFF` case. Say scan A is in flight, then the user picks B (a prompt or a new scan). When A fails, `state.error` is set to A's error and `state.scanning = false` while B is pending or scanning. The UI then shows "Couldn't read this source" under B's consent prompt, or drops B's busy state too early.
+**File:** `app/renderer/app.js:759-763`, `app/renderer/app.js:430-442`
+**Issue:** Unchanged. `sourceGone` still matches only `state.source?.startsWith('/Volumes/')`. On Windows and Linux, a `pendingScan` for `D:\` outlives an eject. A disc inserted while a rip is running doesn't trigger `requestScan` (line 764). "Scan anyway" then scans the new disc, and main records **its** identity as consented, because `scan()` captures `before` at click time (main.js:198). This is now the main place where consent is still effectively keyed by path. The banner still names only `D:`.
 **Fix:**
 ```js
-} catch (e) {
-  if (state.source !== src) return;
-  if (cleanErr(e).startsWith('SANDBOX_OFF')) { ... return requestScan(src); }
-  state.error = cleanErr(e);
+const wasDrive = state.drives.discs.some((d) => d.path === state.source); // before state.drives = drives
+const sourceGone = wasDrive && !drives.discs.some((d) => d.path === state.source);
+```
+Show the volume label (`d.name`) in the prompt. Optionally, have main return an opaque identity token with the drive list and require the scan to present the same token.
+
+### WR-03: A stale scan error overwrites the current source's state (carried, STILL OPEN)
+
+**File:** `app/renderer/app.js:460-468`
+**Issue:** Unchanged. The `catch` branch sets `state.error` and clears `state.scanning` without checking `state.source !== src`. The only exception is `SANDBOX_OFF`. A late failure from scan A overwrites B's prompt or busy state. The new main-side `'The disc changed while it was being scanned…'` error makes late failures more likely.
+**Fix:** Add `if (state.source !== src) return;` as the first line of the `catch` block.
+
+### WR-04: The CI sentinel never exercises libaacs, so it proves nothing (carried, STILL OPEN)
+
+**File:** `.github/workflows/ci.yml:37`, `test/e2e/scenarios.js` (`sec_hermetic_keydirs`)
+**Issue:** Unchanged. No runner installs libaacs (the brew line at ci.yml:37 has no `libaacs`), so the key file is never looked up and the sentinel assertion passes vacuously.
+**Fix:** Install libaacs on at least one runner and require the `found no KEYDB.cfg` branch whenever the sentinel is active. Otherwise, remove the sentinel.
+
+### WR-05: The sentinel can be left in a real user's aacs folder (carried, STILL OPEN)
+
+**File:** `test/e2e/run.js:55-93`
+**Issue:** Unchanged. The only gate is `CI === 'true'` (line 58). Cleanup relies on `process.on('exit')` (line 93), which doesn't run on SIGINT, SIGTERM or SIGKILL. `mkdirSync(..., { recursive: true })` (line 72) can leave a new folder behind.
+**Fix:** Require `GITHUB_ACTIONS === 'true' && SPINARR_E2E_SENTINEL === '1'`. Add SIGINT/SIGTERM handlers. Check the sentinel marker before unlinking, and remove the folder only if `run.js` created it.
+
+### WR-06: Release signing secrets are exposed to PR-triggered builds (carried, STILL OPEN)
+
+**File:** `.github/workflows/release.yml:15, 93-99`
+**Issue:** Unchanged. `pull_request` triggers the packaging job, and the Package step always passes `MAC_CERT_P12_BASE64`, `WIN_CERT_PFX_BASE64`, the passwords and the Apple ID credentials. There is no protected `environment:`.
+**Fix:** Pass the secrets only on `refs/tags/v*`, behind a protected `release` environment. Or split the PR build into an unsigned job with no `secrets.*` references.
+
+### WR-07: "This workflow restores NO caches" is probably false: setup-msys2 caches by default (carried, STILL OPEN)
+
+**File:** `.github/workflows/release.yml:8, 70`
+**Issue:** Unchanged. The `setup-msys2` step still has no `cache: false`. I believe its `cache` input defaults to on, but I didn't check that against the pinned `action.yml`.
+**Fix:** Add `cache: false` to the step, and record the pinned commit's default in the header comment.
+
+### WR-08: The identity changes on harmless OS edits, so queued rips fail and the UI offers no way to rescan
+
+**File:** `app/lib.js:210-235`, `app/main.js:350, 391`, `app/renderer/app.js:474-487, 557-559`
+**Issue:** The comment says "xattr writes (quarantine, Spotlight)" don't change the identity. That holds only on filesystems with native xattrs. On exFAT, FAT32 and many SMB/NAS shares, which are common for Plex/Jellyfin collectors, macOS stores xattrs as AppleDouble `._VTS_01_1.VOB` files in the same folder. Finder writes `.DS_Store` into any folder the user opens, and Windows Explorer writes `Thumbs.db` / `desktop.ini`. Every one of these adds an entry to the hashed `VIDEO_TS` / `BDMV/*` listing. A queued rip then fails with "Scan the disc again" (fail-closed, but spurious). The renderer doesn't handle that message: probe errors go into the track detail, rip refusals become a toast, and `state.disc` keeps showing the stale scan with no rescan action. The user is left with a disc that looks loaded but won't rip.
+**Fix:** In the listing, keep only names the parsers can open. That is safe, because libdvdread and libbluray open only fixed name patterns:
+```js
+const DISC_NAME = { dvd: /^(VIDEO_TS|VTS_\d\d_\d)\.(IFO|BUP|VOB)$/i, bluray: /^(?!\._)[^.].*$/ }; // at least drop dotfiles/AppleDouble
+names = names.filter((n) => DISC_NAME[kind].test(n));
+```
+(Apply this together with the CR-01 coverage fix, so root-level `*.IFO` stays covered.) In the renderer, when a probe or rip error starts with `Scan the disc again` and `src === state.source`, call `requestScan(src)` so the user gets the prompt instead of a dead end.
+
+### WR-09: With the sandbox trusted, a stale scan of a swapped disc or overwritten image is still used to build Blu-ray rips
+
+**File:** `app/main.js:236-246, 258-261, 310-316`
+**Issue:** `assertScanGate` returns at once when `sandboxTrusted()` (line 237), so `scannedSame` never runs on macOS/Linux sandboxed builds. `revalidateScans` runs only on a volume-change event, and an overwritten or re-downloaded `.iso`, or an edited folder, produces none. `probeStreams` and `enqueue` then take the old disc's Blu-ray `playlist`, `chapterDurations` and `duration` from `scans.get(src)` and apply them to the new content. The result: chapters land in the wrong places, the wrong playlist is ripped, and `ripVerdict` checks against the wrong duration. That breaks the core value ("a complete, bit-exact copy … or it fails loudly"), and the comment at line 242 ("a stale scan of a swapped disc is wrong either way") says the code meant to prevent exactly this.
+**Fix:** Always validate freshness. Gate on consent only when untrusted:
+```js
+function assertScanGate(src) {
+  const had = scans.has(src);
+  const fresh = had ? scannedSame(src) : null;     // drops stale entries in every mode
+  if (sandboxTrusted()) return;
+  if (!had) throw new Error(lib.RESCAN_NOT_SCANNED);
+  if (!fresh) throw new Error(lib.RESCAN_CHANGED);
 }
 ```
+Also make `probeStreams` and `enqueue` throw `RESCAN_CHANGED` whenever a Blu-ray entry existed but was dropped, rather than silently falling through to the DVD path.
 
-### WR-04: The CI sentinel test never exercises libaacs, so it proves nothing
+### WR-10: `sec_gate_swap` passes for a reason that doesn't cover the real drive-swap case
 
-**File:** `test/e2e/scenarios.js` (`sec_hermetic_keydirs`), `.github/workflows/ci.yml:38, 182`
-**Issue:** No CI job installs libaacs. The brew line has no `libaacs`, and apt and MSYS2 don't either. On every runner the `bd_aacs` reason is therefore "Install libaacs", which the allow-list `/Install libaacs|found no KEYDB\.cfg|AACS files couldn't be read/` accepts. The engine never looks for a key file, so it never gets the chance to read the sentinel. The test plants a file in the runner's real home and then passes vacuously. The report says "sentinel active", which overstates what was checked.
-**Fix:** Either install libaacs on at least one runner (`brew install libaacs` / `apt-get install libaacs0`) and require the `found no KEYDB.cfg` branch whenever `SPINARR_SENTINEL` is set, or remove the sentinel and keep the path-only assertions. If you keep it, fail when the reason is `Install libaacs` while the sentinel is active.
-
-### WR-05: The sentinel can be left in a real user's aacs folder
-
-**File:** `test/e2e/run.js:57-93`
-**Issue:** The only gate is `CI === 'true'`. Developers often export that locally, and many tools set it. Cleanup runs on normal completion and in `process.on('exit')`, but Node does **not** emit `'exit'` when it is killed by a signal. Ctrl-C (SIGINT), SIGTERM from a CI cancel, or a SIGKILL leaves a fake `KEYDB.cfg` in `~/Library/Preferences/aacs`, `%APPDATA%\aacs`, or `~/.config/aacs`. Then Spinarr's Settings, VLC, and any other libaacs consumer see a "key file present" that holds no keys. `mkdirSync(dir, { recursive: true })` can also leave a new empty folder behind. The `wx` flag does prevent overwriting an existing file.
-**Fix:** Require an explicit opt-in such as `GITHUB_ACTIONS === 'true' && process.env.SPINARR_E2E_SENTINEL === '1'`, set only in `ci.yml`. Add `process.on('SIGINT'|'SIGTERM', () => { removeSentinel(sentinel); process.exit(130); })`. Before unlinking, check the content still starts with the sentinel marker, and remove the folder only if `run.js` created it.
-
-### WR-06: Release signing secrets are exposed to PR-triggered builds
-
-**File:** `.github/workflows/release.yml:15-25, 89-107`
-**Issue:** `release.yml` runs on `pull_request` for packaging paths, and its Package step always passes `MAC_CERT_P12_BASE64`, `WIN_CERT_PFX_BASE64`, the passwords, and the Apple ID credentials. A same-repo PR branch therefore runs electron-builder and every npm dependency's code with the real signing material, and signs unreviewed code. There is no `environment:` protection gate. Fork PRs don't get secrets, but any collaborator branch, or a compromised dependency in a PR's lockfile bump, does.
-**Fix:** Only expose secrets on tag pushes, and put them behind a protected environment:
-```yaml
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
-    env:
-      CSC_LINK: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MAC_CERT_P12_BASE64 || '' }}
-```
-Or split the PR build into an unsigned job with no `secrets.*` references.
-
-### WR-07: "This workflow restores NO caches" is probably false: setup-msys2 caches by default
-
-**File:** `.github/workflows/release.yml:6-9, 70-79`
-**Issue:** As far as I know, `msys2/setup-msys2` has a `cache` input that defaults to `true` and restores the MSYS2 package cache. I didn't confirm this against v2.33.0's `action.yml`, so treat it as likely rather than certain. If so, the Windows release build restores a cache that `ci.yml` (same action, default caching) can write on `main`. pacman signature checks reduce the risk, but the header's guarantee doesn't hold and zizmor may not flag it.
-**Fix:** Add `cache: false` to the `setup-msys2` step in `release.yml`. Better, confirm the default in the pinned commit's `action.yml` and record it in the comment.
-
-### WR-08: Probe/rip guards key only on scan presence and skip the identity re-check before spawning
-
-**File:** `app/main.js:307-333`
-**Issue:** Separately from CR-01's identity problem, `pump()` never re-checks `sandboxTrusted() || scans.has(job.source)` before `start()`. A job enqueued before the 50-entry `scans` eviction, or before a future invalidation (the CR-01 fix), still runs. Any fix that only touches the IPC handlers will miss queued work.
-**Fix:** Run the same identity and gate check from CR-01 at the top of `pump()`, and fail the job with "Scan the disc again" if it doesn't pass.
+**File:** `test/e2e/scenarios.js:304-317`
+**Issue:** Step 1 swaps the disc folder with `fs.rmSync` + `fs.cpSync`. That creates a new root directory, so the root `ino` alone changes the identity. The `VIDEO_TS` coverage is never what triggers the refusal. A physical disc at `D:\` or a reused mount point keeps a stable root path and may keep the same `dev`/`ino`, which is exactly where the per-file fingerprint has to work. The comment admits `fakeEject` reaches only the renderer, so `revalidateScans` isn't exercised either. Nothing tests the `start()` re-check after the async `prepareBluray` gap, or any Blu-ray swap. Because of these gaps, the test stays green even with the CR-01 holes.
+**Fix:** Add an in-place step that keeps the root directory and replaces only its contents (`fs.rmSync(path.join(disc, 'VIDEO_TS'), …)` then copy the other fixture's `VIDEO_TS` in, and separately add a root-level `VTS_01_0.IFO`), and expect refusal. Add a Blu-ray fixture swap during `prepareBluray`, or at least a unit-level test that `start()` refuses when the identity changes between `pump()` and `start()`.
 
 ## Info
 
-### IN-01: The Electron advisory step fails open on an `npm audit` error
+### IN-01: The Electron advisory step fails open on an `npm audit` error (carried, STILL OPEN)
 
-**File:** `.github/workflows/ci.yml` (audit job, "Electron advisories")
-**Issue:** `npm audit --json > audit.json || true` followed by `.vulnerabilities||{}` prints "No advisories affect electron." when npm returns `{"error":...}`. The next step (`--audit-level=high`) would probably fail anyway, but this step reports success it didn't earn.
-**Fix:** `if (j.error || !j.vulnerabilities) { console.error('audit failed', j.error); process.exit(1) }`.
+**File:** `.github/workflows/ci.yml:248-249`
+**Issue:** `|| true` plus `.vulnerabilities||{}` reports "No advisories affect electron." when npm returns `{"error":…}`.
+**Fix:** `if (j.error || !j.vulnerabilities) process.exit(1)`.
 
-### IN-02: The static chokepoint test is easy to sidestep
+### IN-02: The static chokepoint test is easy to sidestep (carried, STILL OPEN)
 
-**File:** `test/unit/gate-static.test.js:533-557`
-**Issue:** It matches the exact text `spinarr.scan(` and `userConfirmed: true`. `userConfirmed:true`, `window.spinarr.scan(`, `spinarr['scan'](`, and `{ userConfirmed: !0 }` all get past it. That's acceptable for a tripwire, but it isn't a guarantee.
-**Fix:** Use regexes that tolerate whitespace and bracket access (`/spinarr\s*(\.|\[\s*['"])scan/`, `/userConfirmed\s*:/`).
+**File:** `test/unit/gate-static.test.js`
+**Issue:** Unchanged. It matches the exact text `spinarr.scan(` / `userConfirmed: true`.
+**Fix:** Use whitespace- and bracket-tolerant regexes (`/spinarr\s*(\.|\[\s*['"])scan/`, `/userConfirmed\s*:/`).
 
-### IN-03: The `sec_gate_ipc` rip-refusal assertion doesn't check why it was refused
+### IN-03: `SPINARR_TEST_HOME` accepts relative paths (carried, STILL OPEN; was IN-04)
 
-**File:** `test/e2e/scenarios.js` (`sec_gate_ipc`)
-**Issue:** `spinarr.rip([{ source, title: 1 }])` asserts `ok === false` without checking the message. Any validation error would satisfy it.
-**Fix:** `h.assert.match(r.e, /Scan the disc/)`. Do the same for the probe refusal.
+**File:** `app/main.js:35`
+**Fix:** `path.resolve(process.env.SPINARR_TEST_HOME)`. This is dev-only.
 
-### IN-04: `SPINARR_TEST_HOME` accepts relative paths
+### IN-04: The `scans` eviction ignores recency, and the rescan wording is reused for unrelated errors
 
-**File:** `app/main.js:35-44`
-**Issue:** A relative value resolves against the cwd, which can scatter key and cache folders. This is dev-only and has no packaged-build impact.
-**Fix:** `const TEST_HOME = !app.isPackaged && process.env.SPINARR_TEST_HOME && path.resolve(process.env.SPINARR_TEST_HOME);`
+**File:** `app/main.js:219-220, 248-252`, `app/lib.js:242`
+**Issue:** `Map.set` on an existing key keeps its original insertion slot. A source the user just rescanned can therefore be the next one evicted at 51 entries, and its queued jobs then fail with "Scan the disc again before ripping". `scannedTitle` throws the same `RESCAN_NOT_SCANNED` when the title simply isn't in the scan, which sends users to rescan for the wrong reason. The never-scanned refusal says "again" and "before ripping" even when it comes from `probe`.
+**Fix:** `scans.delete(source)` before `scans.set(...)`. Use a distinct `'Unknown title'` error in `scannedTitle`. Reword `RESCAN_NOT_SCANNED` to "Scan the disc first", and keep the `/Scan the disc/` prefix that tests match on.
+
+### IN-05: SECURITY.md overstates the guarantees ("An eject always clears the answer")
+
+**File:** `SECURITY.md:39, 42`
+**Issue:** Eject clearing depends on the watcher firing. Windows polls every 3 s (`platform.js:254-259`), and the check looks only for `VIDEO_TS`/`BDMV` presence, so a quick swap can go unseen. In that case only the identity comparison protects the user, and CR-01 shows it is incomplete. Line 39's "swapped … in the same … folder … refuses" also doesn't hold for root-level or `BACKUP`/`AACS` edits (CR-01).
+**Fix:** After fixing CR-01, reword: "Ejecting or changing the disc normally clears the answer; before any probe or rip, Spinarr also checks that the disc's files still match what was scanned."
 
 ---
 
-_Reviewed: 2026-10-11_
+_Reviewed: 2026-10-12T12:06:21Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
