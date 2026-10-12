@@ -475,7 +475,7 @@ test('mediumIdentity: an entry that vanishes mid-walk is recorded, and more entr
     const root = path.join(dir, 'MOVIE');
     makeDvd(root);
     const vob = path.join(root, 'VIDEO_TS', 'VTS_01_1.VOB');
-    const flaky = (p, o) => { if (p === vob) throw new Error('ENOENT'); return fs.statSync(p, o); };
+    const flaky = (p, o) => { if (p === vob) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); return fs.statSync(p, o); };
     assert.notEqual(lib.mediumIdentity(root, { stat: flaky }), lib.mediumIdentity(root));
     // The cap fails closed: past it, the walk throws IDENTITY_TOO_MANY (identityOf -> null -> refusal)
     assert.equal(typeof lib.MAX_IDENTITY_ENTRIES, 'number');
@@ -608,4 +608,116 @@ test('mediumIdentity: OS metadata files do not change a Blu-ray identity', () =>
 
 test('mediumIdentity: desktop.ini in BDMV/PLAYLIST changes identity because libbluray parses it', () => {
   assert.ok(blurayChanges('bdini', (r) => put(r, 'BDMV/PLAYLIST/desktop.ini', '[.ShellClassInfo]')));
+});
+
+// ---------- CR-01 round 3: an unreadable walked directory fails closed ----------
+// libbluray opens files by name, which needs only search (x) permission on the directory. A
+// traverse-only BDMV used to read as `BDMV|missing`, freezing the identity while the engine kept
+// reading edited files (01-VERIFICATION round 2). Now only ENOENT/ENOTDIR count as absent.
+const NO_REAL_CHMOD = process.platform === 'win32' || !!(process.getuid && process.getuid() === 0);
+const errCode = (code) => Object.assign(new Error(code), { code });
+const isUnreadable = (e) => e instanceof Error && e.message === lib.IDENTITY_UNREADABLE;
+function makeSmallBluray(root) {
+  for (const rel of ['BDMV/index.bdmv', 'BDMV/PLAYLIST/00000.mpls', 'BDMV/CLIPINF/00000.clpi', 'BDMV/STREAM/00000.m2ts']) {
+    put(root, rel, `ORIG:${rel}`);
+  }
+}
+function traverseOnly(tag, relDir) {
+  const dir = idTmp(tag);
+  const root = path.join(dir, 'BD');
+  makeSmallBluray(root);
+  const target = path.join(root, ...relDir.split('/'));
+  try {
+    assert.equal(typeof lib.mediumIdentity(root), 'string');
+    fs.chmodSync(target, 0o311);
+    assert.throws(() => lib.mediumIdentity(root), isUnreadable);
+  } finally {
+    // Restore the mode before removing, or rmSync can't list the directory.
+    try { fs.chmodSync(target, 0o755); } catch {}
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('mediumIdentity: a traverse-only BDMV (mode 0o311) throws IDENTITY_UNREADABLE instead of freezing the identity', { skip: NO_REAL_CHMOD && 'needs POSIX permissions and a non-root user' }, () => {
+  traverseOnly('bd311', 'BDMV');
+});
+
+test('mediumIdentity: a traverse-only BDMV/PLAYLIST (mode 0o311) throws IDENTITY_UNREADABLE', { skip: NO_REAL_CHMOD && 'needs POSIX permissions and a non-root user' }, () => {
+  traverseOnly('bdpl311', 'BDMV/PLAYLIST');
+});
+
+test('mediumIdentity: readdir errors other than ENOENT/ENOTDIR on a walked directory throw IDENTITY_UNREADABLE', () => {
+  const dir = idTmp('rderr');
+  try {
+    const bd = path.join(dir, 'BD');
+    makeSmallBluray(bd);
+    const dvd = path.join(dir, 'MOVIE');
+    makeDvd(dvd);
+    for (const code of ['EACCES', 'EPERM', 'EIO', 'ELOOP']) {
+      for (const [root, failing] of [[bd, path.join(bd, 'BDMV')], [bd, path.join(bd, 'BDMV', 'PLAYLIST')], [dvd, path.join(dvd, 'VIDEO_TS')], [dvd, dvd]]) {
+        const readdir = (p) => { if (p === failing) throw errCode(code); return fs.readdirSync(p); };
+        assert.throws(() => lib.mediumIdentity(root, { readdir }), isUnreadable, `${code} on ${failing}`);
+      }
+    }
+    // An error with no code at all is not "absent" either.
+    const bare = (p) => { if (p === path.join(bd, 'BDMV')) throw new Error('boom'); return fs.readdirSync(p); };
+    assert.throws(() => lib.mediumIdentity(bd, { readdir: bare }), isUnreadable);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: stat errors other than ENOENT/ENOTDIR on an entry or a Blu-ray top folder throw IDENTITY_UNREADABLE', () => {
+  const dir = idTmp('sterr');
+  try {
+    const root = path.join(dir, 'BD');
+    makeSmallBluray(root);
+    const mpls = path.join(root, 'BDMV', 'PLAYLIST', '00000.mpls');
+    const aacs = path.join(root, 'AACS');
+    const failOn = (target, code) => (p, o) => { if (p === target) throw errCode(code); return fs.statSync(p, o); };
+    assert.throws(() => lib.mediumIdentity(root, { stat: failOn(mpls, 'EACCES') }), isUnreadable);
+    assert.throws(() => lib.mediumIdentity(root, { stat: failOn(mpls, 'EIO') }), isUnreadable);
+    assert.throws(() => lib.mediumIdentity(root, { stat: failOn(aacs, 'EACCES') }), isUnreadable);
+    assert.throws(() => lib.mediumIdentity(root, { stat: failOn(aacs, 'EPERM') }), isUnreadable);
+    // A missing AACS is fine: most discs and rips have none.
+    assert.equal(lib.mediumIdentity(root, { stat: failOn(aacs, 'ENOENT') }), lib.mediumIdentity(root));
+    // An entry that vanished mid-walk is recorded, not fatal.
+    const gone = lib.mediumIdentity(root, { stat: failOn(mpls, 'ENOENT') });
+    assert.equal(typeof gone, 'string');
+    assert.notEqual(gone, lib.mediumIdentity(root));
+    assert.equal(typeof lib.mediumIdentity(root, { stat: failOn(mpls, 'ENOTDIR') }), 'string');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('mediumIdentity: folders without the optional DVD and Blu-ray directories still give a stable identity', () => {
+  const dir = idTmp('optional');
+  try {
+    const dvd = path.join(dir, 'MOVIE');
+    makeDvd(dvd); // no video_ts (case-sensitive disks), AUDIO_TS or DVD_RTAV
+    const a = lib.mediumIdentity(dvd);
+    assert.ok(a.startsWith('dvd:'));
+    assert.equal(lib.mediumIdentity(dvd), a);
+    const bd = path.join(dir, 'BD');
+    makeSmallBluray(bd); // no AACS, CERTIFICATE or BDSVM
+    const b = lib.mediumIdentity(bd);
+    assert.ok(b.startsWith('bluray:'));
+    assert.equal(lib.mediumIdentity(bd), b);
+    // ENOTDIR (a file where a folder would be) counts as absent too.
+    const notDir = (p) => { if (p === path.join(dvd, 'video_ts')) throw errCode('ENOTDIR'); return fs.readdirSync(p); };
+    assert.equal(typeof lib.mediumIdentity(dvd, { readdir: notDir }), 'string');
+    const noEnt = (p) => { if (p === path.join(dvd, 'AUDIO_TS')) throw errCode('ENOENT'); return fs.readdirSync(p); };
+    assert.equal(typeof lib.mediumIdentity(dvd, { readdir: noEnt }), 'string');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('identityRefusal names the real reason and always starts with "Scan the disc again"', () => {
+  assert.equal(typeof lib.IDENTITY_UNREADABLE, 'string');
+  assert.ok(lib.IDENTITY_UNREADABLE.length > 0);
+  assert.equal(typeof lib.identityRefusal, 'function');
+  assert.equal(lib.identityRefusal(new Error(lib.IDENTITY_UNREADABLE)), `Scan the disc again. ${lib.IDENTITY_UNREADABLE}`);
+  assert.equal(lib.identityRefusal(new Error(lib.IDENTITY_TOO_MANY)), `Scan the disc again. ${lib.IDENTITY_TOO_MANY}`);
+  assert.equal(lib.identityRefusal(new Error('Source changed')), lib.RESCAN_CHANGED);
+  assert.equal(lib.identityRefusal(null), lib.RESCAN_CHANGED);
+  assert.equal(lib.identityRefusal(undefined), lib.RESCAN_CHANGED);
+  for (const e of [new Error(lib.IDENTITY_UNREADABLE), new Error(lib.IDENTITY_TOO_MANY), new Error('x'), null]) {
+    assert.match(lib.identityRefusal(e), /^Scan the disc again/);
+  }
 });
