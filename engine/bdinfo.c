@@ -9,7 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#ifndef SPINARR_FUZZ
 #include "argv_utf8.h"
+#endif
 #include <libbluray/bluray.h>
 #include <libbluray/log_control.h>
 
@@ -100,19 +102,13 @@ static int by_playlist(const void *a, const void *b)
     return x < y ? -1 : x > y;
 }
 
-int main(int argc, char **argv)
+/* Print the playlists of an open disc as JSON; returns the process exit status.
+ * The caller owns bd (and closes it): the fuzz harness calls this directly. */
+int bdinfo_print(BLURAY *bd)
 {
-    if (argc < 2) { fprintf(stderr, "usage: bdinfo <device|iso|dir>\n"); return 2; }
-
-    bd_set_debug_mask(0); /* keep libbluray's logging off stdout/stderr noise */
-
-    BLURAY *bd = bd_open(arg_utf8(argc, argv, 1), NULL);
-    if (!bd) { printf("{\"error\":\"Could not open disc\"}\n"); return 1; }
-
     const BLURAY_DISC_INFO *di = bd_get_disc_info(bd);
     if (!di || !di->bluray_detected) {
         printf("{\"error\":\"Not a Blu-ray disc (no BDMV)\"}\n");
-        bd_close(bd);
         return 1;
     }
 
@@ -181,7 +177,21 @@ int main(int argc, char **argv)
         bd_free_title_info(ti);
     }
     printf("]}\n");
-
-    bd_close(bd);
     return 0;
 }
+
+#ifndef SPINARR_FUZZ
+int main(int argc, char **argv)
+{
+    if (argc < 2) { fprintf(stderr, "usage: bdinfo <device|iso|dir>\n"); return 2; }
+
+    bd_set_debug_mask(0); /* keep libbluray's logging off stdout/stderr noise */
+
+    BLURAY *bd = bd_open(arg_utf8(argc, argv, 1), NULL);
+    if (!bd) { printf("{\"error\":\"Could not open disc\"}\n"); return 1; }
+
+    int status = bdinfo_print(bd);
+    bd_close(bd);
+    return status;
+}
+#endif
