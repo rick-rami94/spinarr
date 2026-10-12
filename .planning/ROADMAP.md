@@ -81,7 +81,7 @@ Plans:
 
 **Gap closure round 2 — Wave 2** *(blocked on 01-13)*
 
-- [ ] 01-14-PLAN.md — sec_gate_inplace e2e (in-place edits, same root inode; WR-10), SECURITY.md coverage/limit wording (IN-05), SAFE-01 left pending re-verification
+- [x] 01-14-PLAN.md — sec_gate_inplace e2e (in-place edits, same root inode; WR-10), SECURITY.md coverage/limit wording (IN-05), SAFE-01 left pending re-verification
 
 **UI hint**: yes
 
@@ -206,7 +206,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 13/14 | In Progress|  |
+| 1. Safety Gate & CI Baseline | 14/14 | Awaiting re-verification |  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
