@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-08-PLAN.md
-last_updated: "2026-10-12T20:25:43.707Z"
-last_activity: 2026-10-12 -- Phase 01 planning complete
+stopped_at: Completed 01-13-PLAN.md
+last_updated: "2026-10-12T20:43:59.308Z"
+last_activity: 2026-10-12
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-10)
 ## Current Position
 
 Phase: 01 (safety-gate-ci-baseline) — EXECUTING
-Plan: 12 of 12
+Plan: 14 of 14
 Status: Ready to execute
-Last activity: 2026-10-12 -- Phase 01 planning complete
+Last activity: 2026-10-12
 
-Progress: [██████████] 100%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100%
 | Phase 01 P01 | 5 min | 3 tasks | 0 files |
 | Phase 01 P11 | 6 min | 2 tasks | 3 files |
 | Phase 01 P12 | 12 min | 2 tasks | 5 files |
+| Phase 01 P13 | 6 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,7 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-11: Scan consent bound to lib.mediumIdentity (fs identity, no atime/ctime); assertScanGate at probe/enqueue/pump/prepareBluray/start; revalidateScans on volume change
 - [Phase 01]: 01-12: sec_gate_swap e2e locks in medium-identity consent; fails against the old path-only probe gate
 - [Phase 01]: 01-12: SAFE-01 left unchecked, awaiting phase re-verification (Windows CI must show sec_gate_swap passing)
+- [Phase 01]: 01-13: mediumIdentity walks every parser-readable dir; MAX_IDENTITY_ENTRIES=20000 throws IDENTITY_TOO_MANY (fail closed); no identity caching
 
 ### Pending Todos
 
@@ -95,6 +97,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-12T11:52:48.798Z
+Last session: 2026-10-12T20:43:53.151Z
 Stopped at: Completed 01-08-PLAN.md
 Resume file: None

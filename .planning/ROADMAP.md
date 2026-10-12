@@ -77,7 +77,7 @@ Plans:
 
 **Gap closure round 2 — Wave 1** *(CR-01 identity coverage, SAFE-01)*
 
-- [ ] 01-13-PLAN.md — mediumIdentity fingerprints every file the parsers open (DVD root/video_ts/AUDIO_TS/DVD_RTAV; BD BDMV/**, AACS/**, CERTIFICATE/**, BDSVM/**), ignores only unopenable OS metadata, fails closed at a 20000-entry cap; unit tests
+- [x] 01-13-PLAN.md — mediumIdentity fingerprints every file the parsers open (DVD root/video_ts/AUDIO_TS/DVD_RTAV; BD BDMV/**, AACS/**, CERTIFICATE/**, BDSVM/**), ignores only unopenable OS metadata, fails closed at a 20000-entry cap; unit tests
 
 **Gap closure round 2 — Wave 2** *(blocked on 01-13)*
 
@@ -206,7 +206,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 12/12 | Complete   | 2026-10-12 |
+| 1. Safety Gate & CI Baseline | 13/14 | In Progress|  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
