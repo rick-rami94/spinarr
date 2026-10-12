@@ -47,12 +47,18 @@ Download the installer for your computer from the **[latest release](https://git
 | Linux: Ubuntu, Debian, Mint, Pop!_OS | `Spinarr-<version>-linux-<arch>.deb` |
 | Linux: any other distribution | `Spinarr-<version>-linux-<arch>.AppImage` |
 
-Releases aren't code-signed yet, so the first launch takes one extra step:
-
-- **macOS:** open the `.dmg` and drag Spinarr to Applications. The first time, right-click it and choose **Open**. On macOS 15 or later, go to **System Settings → Privacy & Security** and click **Open Anyway**.
-- **Windows:** run the installer. If SmartScreen appears, click **More info → Run anyway**. Spinarr installs for your user only, with no admin prompt.
+- **macOS:** open the `.dmg` and drag Spinarr to Applications.
+- **Windows:** run the installer. Spinarr installs for your user only, with no admin prompt.
 - **Linux (.deb):** `sudo apt install ./Spinarr-*.deb`. This also installs bubblewrap, which sandboxes the engine.
 - **Linux (AppImage):** `chmod +x Spinarr-*.AppImage`, then run it. Install `bubblewrap` from your package manager so the engine runs sandboxed.
+
+From v0.2.0, releases are signed:
+
+- The macOS app and `.dmg` are signed with a Developer ID and notarized by Apple.
+- The Windows installer and every program inside it are signed, with publisher **Rick Ramirez**. On early releases, Windows SmartScreen may still show an "unrecognized app" notice while the new publisher builds reputation. Spinarr will never ask you to turn your system's protections off.
+- Releases v0.1.x were not signed. Use v0.2.0 or later.
+
+[How to verify a download](docs/RELEASING.md#verifying-a-release): checksums, the Sigstore signature and GitHub's build attestations.
 
 ### Encrypted DVDs (libdvdcss)
 
