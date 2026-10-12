@@ -102,7 +102,24 @@ Plans:
   4. Every release attaches a GPL corresponding-source bundle (app source, upstream engine tarballs, patches), and the installed app shows third-party license notices.
   5. CI runs libFuzzer harnesses for libdvdread IFO and libbluray MPLS/CLPI via ClusterFuzzLite, and replays the malicious-disc corpus against ASan builds on every change.
 
-**Plans**: TBD
+**Plans**: 14 plans in 6 waves
+
+Plans:
+- [ ] 02-01-PLAN.md — macOS/Windows signing hooks, split entitlements, verify scripts (REL-01, REL-02)
+- [ ] 02-02-PLAN.md — pin parser, CycloneDX SBOM, THIRD_PARTY_NOTICES, build.sh fetch mode (REL-03, REL-04)
+- [ ] 02-03-PLAN.md — account runbook, verification guide, README; `release` env + Immutable Releases checkpoint
+- [ ] 02-04-PLAN.md — private fuzz corpus repo and scoped credential (checkpoints)
+- [ ] 02-05-PLAN.md — libFuzzer harnesses (DVDOpenFiles / bd_open_files) and scanner refactor (SAFE-10)
+- [ ] 02-06-PLAN.md — Settings > About: GPL notice, source link, third-party licenses (REL-04)
+- [ ] 02-07-PLAN.md — ASan corpus replay job, required check (SAFE-10)
+- [ ] 02-08-PLAN.md — ClusterFuzzLite build, unpatched sanity check, standalone-run spike, fuzz-run.sh (SAFE-10)
+- [ ] 02-09-PLAN.md — reproducible GPL source bundle + BUILDING.md (REL-04)
+- [ ] 02-10-PLAN.md — PR/nightly/weekly fuzz workflows with private crash reporting (SAFE-10)
+- [ ] 02-11-PLAN.md — release.yml: env-gated signing, dmg notarization, SBOM, source, cosign, attestations, draft (REL-01..04)
+- [ ] 02-12-PLAN.md — unsigned v0.2.0-rc.1 end-to-end rehearsal (checkpoint)
+- [ ] 02-13-PLAN.md — accounts, merge to main, signed v0.2.0 draft verification (checkpoints)
+- [ ] 02-14-PLAN.md — real-download check, publish, D-08 relabel of v0.1.x (checkpoints)
+
 **Research flag**: light (signing/notarization/attestation mechanics are HIGH confidence)
 
 ### Phase 3: Rip Foundations
@@ -212,7 +229,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Safety Gate & CI Baseline | 15/15 | Complete | 2026-10-12 |
-| 2. Trust & Distribution | 0/TBD | Not started | - |
+| 2. Trust & Distribution | 0/14 | Planned | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
 | 5. Verified Rips | 0/TBD | Not started | - |
