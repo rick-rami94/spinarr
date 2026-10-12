@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-14-PLAN.md
-last_updated: "2026-10-12T21:29:37.354Z"
-last_activity: 2026-10-12 -- Phase 01 planning complete
+stopped_at: Completed 01-15-PLAN.md
+last_updated: "2026-10-12T21:37:44.397Z"
+last_activity: 2026-10-12 -- Completed 01-15 (awaiting Phase 1 re-verification)
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-10-10)
 ## Current Position
 
 Phase: 01 (safety-gate-ci-baseline) — EXECUTING
-Plan: 14 of 14
-Status: Ready to execute
-Last activity: 2026-10-12 -- Phase 01 planning complete
+Plan: 15 of 15
+Status: All plans complete; awaiting Phase 1 re-verification
+Last activity: 2026-10-12 -- Completed 01-15 (awaiting Phase 1 re-verification)
 
 Progress: [██████████] 100%
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 | Phase 01 P12 | 12 min | 2 tasks | 5 files |
 | Phase 01 P13 | 6 min | 2 tasks | 3 files |
 | Phase 01 P14 | 6 min | 2 tasks | 6 files |
+| Phase 01 P15 | 10 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-12: SAFE-01 left unchecked, awaiting phase re-verification (Windows CI must show sec_gate_swap passing)
 - [Phase 01]: 01-13: mediumIdentity walks every parser-readable dir; MAX_IDENTITY_ENTRIES=20000 throws IDENTITY_TOO_MANY (fail closed); no identity caching
 - [Phase 01]: 01-14: sec_gate_inplace holds the root inode constant so only the per-file fingerprint can trigger refusal; fails on pre-01-13 lib.js (metadata step and, separately, root-IFO step)
+- [Phase 01]: 01-15: mediumIdentity treats only ENOENT/ENOTDIR as absent; any other readdir/stat error throws IDENTITY_UNREADABLE (CR-01 round 3 closed)
+- [Phase 01]: 01-15: SAFE-01 residual (lazy re-reads, crafted clip_id, same-size rewrite) disclosed in SECURITY.md and transferred to SF-1 (SAFE-05 / Phase 4)
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-12T20:50:58.124Z
-Stopped at: Completed 01-14-PLAN.md
+Last session: 2026-10-12T21:37:44.385Z
+Stopped at: Completed 01-15-PLAN.md
 Resume file: None

@@ -85,7 +85,7 @@ Plans:
 
 **Gap closure round 3 — Wave 1** *(CR-01 traverse-only bypass, SAFE-01)*
 
-- [ ] 01-15-PLAN.md — mediumIdentity fails closed on unreadable directories (only ENOENT/ENOTDIR = absent), refusals name the real reason, chmod unit tests + sec_gate_unlistable e2e, SECURITY.md residual scoped to SF-1, SAFE-05/Phase 4 traceability note
+- [x] 01-15-PLAN.md — mediumIdentity fails closed on unreadable directories (only ENOENT/ENOTDIR = absent), refusals name the real reason, chmod unit tests + sec_gate_unlistable e2e, SECURITY.md residual scoped to SF-1, SAFE-05/Phase 4 traceability note
 
 **UI hint**: yes
 
@@ -211,7 +211,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 14/14 | Awaiting re-verification |  |
+| 1. Safety Gate & CI Baseline | 15/15 | Awaiting re-verification |  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |

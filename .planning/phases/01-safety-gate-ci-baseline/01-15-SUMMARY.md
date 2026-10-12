@@ -112,3 +112,11 @@ None.
 
 - FOUND: app/lib.js (IDENTITY_UNREADABLE, identityRefusal), app/main.js (identityRefusal), test/unit/lib.test.js, test/e2e/scenarios.js (sec_gate_unlistable), SECURITY.md, docs/SECURITY_TESTING.md
 - FOUND commits: 7e5101c, 2faa9a4, 507e17a, b80f661
+
+## State bookkeeping corrections
+
+The GSD SDK wrote stale or premature values, fixed by hand:
+- `state.advance-plan` set "Plan: 2 of 15" / "Ready to execute" (it read the orchestrator's "1 of 15"). Set to "Plan: 15 of 15", "All plans complete; awaiting Phase 1 re-verification".
+- `state.update-progress` set `completed_phases: 1` and `percent: 13`. Reverted to 0 / 0: Phase 1 is not verified.
+- `roadmap.update-plan-progress` ticked the Phase 1 top-level line "(completed 2026-10-12)" and set the row to "Complete". Reverted to `- [ ]` and "15/15 | Awaiting re-verification". Only 01-15 is ticked.
+- `requirements.mark-complete` was not run; SAFE-01 stays `[ ]`.
