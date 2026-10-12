@@ -59,8 +59,9 @@ Object.assign(module.exports, {
       h.assert.equal(r.ipc, 'undefined');
       h.assert.equal(r.href, 'app://spinarr/index.html');
       h.assert.ok(r.frozen, 'bridge object is frozen');
-      h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'installKeydb', 'on',
-        'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
+      h.assert.deepEqual(r.bridge, ['about', 'cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'installKeydb',
+        'notices', 'on', 'openChromiumLicenses', 'openSourceRelease', 'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip',
+        'scan', 'setSettings', 'system'].sort());
       h.assert.equal(await h.js(`window.open('https://example.com') === null`), true, 'window.open is denied');
       for (const target of ['https://example.com', 'file:///etc/hosts', 'app://spinarr/../../etc/hosts']) {
         await h.js(`location.href = ${JSON.stringify(target)}; 1`).catch(() => {});
@@ -664,6 +665,45 @@ Object.assign(module.exports, {
         h.assert.deepEqual(await h.js(visibleTitles), [1, 2, 4], 'short titles shown with 0-minute threshold');
       },
     ],
+  },
+
+  about_notices: {
+    stories: ['REL-04'],
+    title: 'Settings > About shows the GPL notice, source link and third-party licenses',
+    async run(h) {
+      // The harness runs in the main process, so record what main would open in the browser.
+      const { shell } = require('electron');
+      const realOpenExternal = shell.openExternal;
+      const opened = [];
+      shell.openExternal = async (url) => { opened.push(url); };
+      try {
+        const version = h.app.getVersion();
+        await h.click('#settingsBtn');
+        await h.waitFor(`(document.querySelector('#aboutGroup pre') || {}).textContent`, { what: 'third-party notices text' });
+        const g = await h.js(`({ text: document.querySelector('#aboutGroup').textContent,
+          notices: document.querySelector('#aboutGroup pre').textContent,
+          html: document.querySelector('#aboutGroup').innerHTML })`);
+        h.assert.ok(g.text.includes(version), `About shows version ${version}`);
+        h.assert.ok(g.text.includes('GPL-3.0-or-later'), 'About shows the GPL notice');
+        for (const c of ['== libdvdread', '== libbluray', '== libudfread', '== electron']) h.assert.ok(g.notices.includes(c), `notices include ${c}`);
+        h.assert.ok(!g.html.includes('<script'), 'no script markup in the About group');
+
+        // The renderer cannot choose the URL: an argument is ignored and main opens its own link.
+        await h.click('[data-action="open-source"]');
+        await call(h, 'spinarr.openSourceRelease("https://evil.example")');
+        await h.sleep(300);
+        const want = `https://github.com/rick-rami94/spinarr/releases/tag/v${version}`;
+        h.assert.deepEqual(opened, [want, want], 'both opens use the fixed source-release URL');
+
+        await h.js(`document.querySelector('#aboutGroup details').open = true; document.querySelector('#aboutGroup').scrollIntoView(); 1`);
+        for (const skin of require('../../app/lib').SKINS) {
+          await h.js(`document.documentElement.dataset.skin = ${JSON.stringify(skin)}; 1`);
+          await h.shot(`about-${skin}`);
+        }
+      } finally {
+        shell.openExternal = realOpenExternal;
+      }
+    },
   },
 
   us_low_disk_space: {

@@ -415,6 +415,28 @@ function renderSystem() {
   $('#setupBtn').hidden = d.installed && !sys.bwrapHelp;
 }
 
+// ---------- about (version, license, third-party notices; REL-04) ----------
+// The notices file is bundled text, but it still only ever reaches the page through textContent.
+async function renderAbout() {
+  // Settings can open before boot has fetched this, so fetch on demand too.
+  if (!state.about) { try { state.about = await spinarr.about(); } catch { return; } }
+  const ab = state.about;
+  $('#aboutGroup').innerHTML = `
+    <div class="group-row top">
+      <div class="gr-text"><b>Spinarr ${esc(ab.version)}</b><small>Free software under the GNU General Public License, version 3 or later (${esc(ab.license)}).</small></div></div>
+    <div class="group-row top">
+      <div class="gr-text"><b>Source code</b><small>${esc(ab.sourceUrl)}</small></div>
+      <button type="button" class="ghost-btn" data-action="open-source">Get the source code</button></div>
+    <div class="group-row top">
+      <div class="gr-text"><b>Electron and Chromium</b><small>The licenses for the browser engine Spinarr runs on.</small></div>
+      <button type="button" class="ghost-btn" data-action="open-chromium-licenses">Chromium licenses</button></div>
+    <div class="group-row top">
+      <div class="gr-text"><details><summary>Third-party licenses</summary><pre class="notices"></pre></details></div></div>`;
+  const pre = $('#aboutGroup pre');
+  try { pre.textContent = await spinarr.notices(); }
+  catch (err) { pre.textContent = cleanErr(err); }
+}
+
 // ---------- focus helpers (re-renders replace DOM nodes) ----------
 function focusKey() {
   const a = document.activeElement;
@@ -571,6 +593,7 @@ function openSettings() {
   $('#setMin').value = state.settings.minMinutes;
   $('#setChapters').checked = state.settings.accurateChapters;
   renderSystem();
+  renderAbout();
   $('#settingsDlg').showModal();
 }
 
@@ -623,6 +646,8 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'rip': startRip(); break;
+    case 'open-source': spinarr.openSourceRelease(); break;
+    case 'open-chromium-licenses': spinarr.openChromiumLicenses(); break;
   }
 });
 
@@ -780,6 +805,7 @@ spinarr.on('drives-changed', (drives) => onDrives(drives));
   state.settings = await spinarr.getSettings();
   applySkin(state.settings.skin);
   state.system = await spinarr.system();
+  state.about = await spinarr.about();
   renderSystem();
   const drives = await spinarr.drives();
   state.drives = drives;
