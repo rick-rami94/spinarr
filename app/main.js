@@ -195,7 +195,7 @@ function identityOf(src) {
 
 async function scan(source) {
   let before;
-  try { before = lib.mediumIdentity(source); } catch { throw new Error('Source not found'); }
+  try { before = lib.mediumIdentity(source); } catch (e) { throw new Error(e && e.message === lib.IDENTITY_TOO_MANY ? lib.IDENTITY_TOO_MANY : 'Source not found'); }
   const kind = lib.sourceKind(source);
   let json;
   if (kind === 'bluray') json = await readInfo('bdinfo', source);

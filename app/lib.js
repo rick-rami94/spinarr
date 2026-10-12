@@ -209,9 +209,45 @@ function sourceKind(dir, { stat = fs.statSync } = {}) {
 
 // Filesystem identity for the SAFE-01 consent binding (CR-01); the disc-ID catalog is Phase 3.
 // A string that changes when the medium at `source` changes: swapped, overwritten, replaced or
-// remounted. No atime/ctime: plain reads and xattr writes (quarantine, Spotlight) change those.
-const MAX_IDENTITY_ENTRIES = 5000;
-const IDENTITY_DIRS = { dvd: ['VIDEO_TS'], bluray: ['BDMV', 'BDMV/PLAYLIST', 'BDMV/CLIPINF', 'BDMV/STREAM'] };
+// remounted. It fingerprints every file the engine's parsers can open from a disc folder (ino,
+// size, mtime). No atime/ctime: plain reads and xattr writes (quarantine, Spotlight) change those.
+// OS metadata names that no parser can open are ignored (see identityIgnored).
+//
+// 20000 leaves margin over real Blu-ray trees (PLAYLIST, CLIPINF and STREAM each rarely exceed
+// ~2000 entries; BACKUP duplicates PLAYLIST and CLIPINF). Past the cap the walk throws: that is
+// the fail-closed choice, because main.js identityOf turns a throw into null, which never equals
+// the stored identity, so probe/rip refuse. A symlink loop ends at the cap or when readdir fails
+// (ENAMETOOLONG/ELOOP -> `|missing`).
+const MAX_IDENTITY_ENTRIES = 20000;
+const IDENTITY_TOO_MANY = 'This disc has too many files to check safely.';
+
+// What each parser can open from a disc folder:
+// - DVD (libdvdread 7.1.1, dvd_reader.c): findDVDFile strips the /VIDEO_TS/ prefix and calls
+//   findDirFile on the source root FIRST, then <root>/VIDEO_TS/, then <root>/video_ts/ (DVD-Audio
+//   uses AUDIO_TS/audio_ts, DVD-VR uses DVD_RTAV/dvd_rtav). findDirFile matches a fixed full name
+//   with strcasecmp and never enumerates to pick names, so these directories are walked FLAT.
+// - Blu-ray (libbluray 1.5.0): BDMV/** including the BACKUP fallbacks (mpls_parse.c:1179,
+//   clpi_parse.c:865, index_parse.c:317), META, JAR, BDJO, AUXDATA; CERTIFICATE/id.bdmv and
+//   CERTIFICATE/BACKUP/id.bdmv (bdid_parse.c:116); BDSVM/ (libbdplus, bdplus.c:82); and libaacs's
+//   fixed names under AACS/ and AACS/DUPLICATE/. Every path is prefixed by one of these four, so
+//   the subtrees are walked RECURSIVELY and the Blu-ray root's own files are not.
+const IDENTITY_WALK = {
+  dvd: { dirs: ['', 'VIDEO_TS', 'video_ts', 'AUDIO_TS', 'audio_ts', 'DVD_RTAV', 'dvd_rtav'], recurse: false },
+  bluray: { dirs: ['BDMV', 'AACS', 'CERTIFICATE', 'BDSVM'], recurse: true },
+};
+
+// Names no parser can open, so OS metadata never causes a spurious refusal (WR-08).
+// - Dot-prefixed (.DS_Store, AppleDouble ._*, .Spotlight-V100, .Trashes, .fseventsd): libdvdread's
+//   strcasecmp names never start with '.'; libbluray's only enumerations skip '.' names
+//   (navigation.c:430 for PLAYLIST, meta_parse.c:165 for META/DL) and it opens fixed names
+//   elsewhere; libaacs names are fixed.
+// - Thumbs.db / ehthumbs.db / desktop.ini: DVD only. navigation.c:443 calls mpls_get on EVERY
+//   other PLAYLIST entry, so for Blu-ray those names stay fingerprinted.
+const DVD_IGNORED = new Set(['thumbs.db', 'ehthumbs.db', 'desktop.ini']);
+function identityIgnored(kind, name) {
+  if (name.startsWith('.')) return true;
+  return kind === 'dvd' && DVD_IGNORED.has(name.toLowerCase());
+}
 
 function mediumIdentity(source, { stat = fs.statSync, readdir = fs.readdirSync } = {}) {
   const big = (p) => stat(p, { bigint: true });
@@ -219,22 +255,40 @@ function mediumIdentity(source, { stat = fs.statSync, readdir = fs.readdirSync }
   if (st.isFile()) return 'file:' + [st.dev, st.ino, st.size, st.mtimeNs, st.birthtimeNs].join('|');
   const kind = sourceKind(source, { stat: (p) => stat(p) });
   if (!kind) throw new Error('Source changed');
+  const abs = (rel) => (rel ? path.join(source, ...rel.split('/')) : source);
   const lines = [`root|${st.dev}|${st.ino}`];
+  const { dirs, recurse } = IDENTITY_WALK[kind];
   let statted = 0;
-  let skipped = 0;
-  for (const rel of IDENTITY_DIRS[kind]) {
-    let names;
-    try { names = readdir(path.join(source, ...rel.split('/'))); } catch { lines.push(`${rel}|missing`); continue; }
-    for (const name of [...names].map(String).sort()) {
-      if (statted >= MAX_IDENTITY_ENTRIES) { skipped++; continue; }
-      statted++;
-      try {
-        const e = big(path.join(source, ...rel.split('/'), name));
-        lines.push(`${rel}/${name}|${e.ino}|${e.size}|${e.mtimeNs}`);
-      } catch { lines.push(`${rel}/${name}|gone`); }
+  for (const top of dirs) {
+    if (recurse) {
+      // The subtree's own line, so creating AACS/ or BDSVM/ later changes identity.
+      let t = null;
+      try { t = big(abs(top)); } catch {}
+      if (!t || !t.isDirectory()) { lines.push(`${top}|missing`); continue; }
+      lines.push(`${top}|d|${t.ino}`);
+    }
+    const queue = [top]; // iterative walk, never JS recursion
+    while (queue.length) {
+      const rel = queue.shift();
+      let names;
+      try { names = readdir(abs(rel)); } catch { lines.push(`${rel}|missing`); continue; }
+      for (const name of [...names].map(String).sort()) {
+        if (identityIgnored(kind, name)) continue;
+        if (++statted > MAX_IDENTITY_ENTRIES) throw new Error(IDENTITY_TOO_MANY);
+        const relName = rel ? `${rel}/${name}` : name;
+        let e;
+        try { e = big(abs(relName)); } catch { lines.push(`${relName}|gone`); continue; }
+        if (e.isDirectory()) {
+          // Inode only: a directory's size/mtime move when OS metadata is written inside it, and
+          // the contents of every directory a parser reads are walked anyway.
+          lines.push(`${relName}|d|${e.ino}`);
+          if (recurse) queue.push(relName);
+        } else {
+          lines.push(`${relName}|f|${e.ino}|${e.size}|${e.mtimeNs}`);
+        }
+      }
     }
   }
-  if (skipped) lines.push(`+${skipped}`);
   return `${kind}:` + crypto.createHash('sha256').update(lines.join('\n')).digest('hex');
 }
 
@@ -360,5 +414,5 @@ module.exports = {
   sourceKind, chaptersMetadata, blurayRipArgs, outputVideoSeconds,
   SANDBOX_PROFILE, sandboxed, volumeKind,
   validateSource, validateTitle, validateJob, validateScanOptions, scanGate, SANDBOX_OFF, sanitizeSettingsPatch, SKINS,
-  mediumIdentity, RESCAN_NOT_SCANNED, RESCAN_CHANGED,
+  mediumIdentity, IDENTITY_TOO_MANY, MAX_IDENTITY_ENTRIES, RESCAN_NOT_SCANNED, RESCAN_CHANGED,
 };
