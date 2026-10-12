@@ -68,6 +68,36 @@ if [ "${1:-}" = fetch ]; then
   exit 0
 fi
 
+# `build.sh asan` builds sanitizer (ASan+UBSan) dvdinfo/bdinfo into bin-asan/ for the corpus replay; never packaged.
+if [ "${1:-}" = asan ]; then
+  PREFIX_ASAN="$DEPS/prefix-asan"
+  SAN="--buildtype=debugoptimized -Db_ndebug=false -Db_sanitize=address,undefined -Db_lundef=false"
+  src=$(fetch libdvdread)
+  rm -rf "$src/build-asan"
+  # shellcheck disable=SC2086
+  meson setup "$src/build-asan" "$src" --prefix="$PREFIX_ASAN" --libdir=lib --default-library=static \
+    $SAN -Dlibdvdcss=disabled >/dev/null
+  ninja -C "$src/build-asan" install >/dev/null
+  src=$(fetch libbluray)
+  rm -rf "$src/build-asan"
+  # shellcheck disable=SC2086
+  meson setup "$src/build-asan" "$src" --prefix="$PREFIX_ASAN" --libdir=lib --default-library=static \
+    $SAN -Dbdj_jar=disabled -Dfontconfig=disabled -Dfreetype=disabled \
+    -Dlibxml2=disabled -Denable_tools=false -Denable_docs=false -Denable_examples=false \
+    -Denable_devtools=false -Dembed_udfread=true >/dev/null
+  ninja -C "$src/build-asan" install >/dev/null
+  mkdir -p bin-asan
+  ASAN_CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Wno-unused-parameter"
+  # shellcheck disable=SC2046,SC2086
+  $CC $ASAN_CFLAGS -o "bin-asan/dvdinfo$EXE" dvdinfo.c \
+    $(PKG_CONFIG_PATH="$PREFIX_ASAN/lib/pkgconfig" pkg-config --static --cflags --libs dvdread)
+  # shellcheck disable=SC2046,SC2086
+  $CC $ASAN_CFLAGS -o "bin-asan/bdinfo$EXE" bdinfo.c \
+    $(PKG_CONFIG_PATH="$PREFIX_ASAN/lib/pkgconfig" pkg-config --static --cflags --libs libbluray)
+  echo "asan engine built -> $ROOT/bin-asan"
+  exit 0
+fi
+
 # `build.sh scanners` rebuilds only dvdinfo/bdinfo against the already-built libraries.
 if [ "${1:-}" != scanners ]; then
 
