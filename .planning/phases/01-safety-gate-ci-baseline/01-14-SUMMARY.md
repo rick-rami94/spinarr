@@ -77,3 +77,9 @@ None.
 
 - Windows CI (`windows` job on milestone/v1.0) must show sec_gate_inplace, sec_gate_swap and sec_gate_ipc passing before SAFE-01 is re-verified. That is the platform where the gate always applies. Not run here.
 - SAFE-01 and the Phase 1 roadmap line stay unchecked until /gsd:verify-work re-checks truth #1.
+
+## Self-Check: PASSED
+
+- FOUND: test/e2e/scenarios.js, SECURITY.md, docs/SECURITY_TESTING.md
+- FOUND: f735049, d174ba9
+- Roadmap note: `roadmap update-plan-progress` re-ticked the Phase 1 line and set the progress row to Complete once all 14 summaries existed. Both were reverted by hand: the line is back to `- [ ]` and the row reads "Awaiting re-verification". The SDK also wrote a wrong `stopped_at` (01-08) and `completed_phases: 1` into STATE.md, and both were corrected. `requirements.mark-complete` was intentionally not run for SAFE-01.
