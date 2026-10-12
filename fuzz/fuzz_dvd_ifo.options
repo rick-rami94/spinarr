@@ -1,3 +1,9 @@
 [libfuzzer]
 detect_leaks=0
 max_len=1048576
+
+# Leaks in one-shot scanners are not security bugs (Pitfall 9). The [libfuzzer] flag only
+# covers in-loop checks; [asan] also stops the exit-time LeakSanitizer report that CIFuzz
+# would otherwise save as a crash file (seen in prune mode, plan 02-08).
+[asan]
+detect_leaks=0
