@@ -368,6 +368,71 @@ Object.assign(module.exports, {
     },
   },
 
+  sec_gate_inplace: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: an in-place edit to any file the disc readers open (same folder, same root) must be scanned again; OS metadata files do not block',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      // Unlike sec_gate_swap, nothing here replaces the source folder. The root inode never
+      // changes, so only the per-file fingerprint from plan 01-13 can trigger the refusal
+      // (WR-10). Every edit works on copies in a temp folder; the committed fixtures are only read.
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-inplace-'));
+      const q = (v) => JSON.stringify(v);
+      const refused = async (expr, what) => {
+        const r = await call(h, expr);
+        h.assert.equal(r.ok, false, `${what} must be refused`);
+        h.assert.match(r.e, /Scan the disc again/, `${what} is refused with a rescan message`);
+      };
+      try {
+        // 1. DVD folder: a root-level IFO appears (libdvdread searches the root first).
+        const disc = path.join(tmp, 'DISC');
+        fs.cpSync(h.fx('ntsc_basic'), disc, { recursive: true });
+        const ino0 = fs.statSync(disc).ino;
+        await h.load(disc);
+        const ok1 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok1.ok, true, `probe works for the disc scanned with consent: ${ok1.e}`);
+        // OS metadata that no disc reader opens.
+        fs.writeFileSync(path.join(disc, '.DS_Store'), Buffer.from([0, 0, 0, 1]));
+        fs.writeFileSync(path.join(disc, 'VIDEO_TS', '.DS_Store'), Buffer.from([0, 0, 0, 1]));
+        fs.writeFileSync(path.join(disc, 'VIDEO_TS', '._VTS_01_1.VOB'), Buffer.from([0, 5, 22, 7]));
+        const ok2 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok2.ok, true, `OS metadata files do not invalidate consent: ${ok2.e}`);
+        fs.copyFileSync(path.join(disc, 'VIDEO_TS', 'VTS_01_0.IFO'), path.join(disc, 'VTS_01_0.IFO'));
+        h.assert.equal(fs.statSync(disc).ino, ino0, 'the DVD folder itself was not replaced');
+        await refused(`spinarr.probe(${q(disc)}, 1)`, 'probe after a root-level IFO was added');
+        await refused(`spinarr.rip([{ source: ${q(disc)}, title: 1, duration: 12, fileName: 'inplace-dvd', displayName: 'x' }])`, 'rip after a root-level IFO was added');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of an edited DVD folder enqueues nothing');
+        // Scanning again restores probe.
+        await h.load(disc);
+        const ok3 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok3.ok, true, `probe works again after a consented rescan: ${ok3.e}`);
+
+        // 2. Blu-ray folder: a BDMV/BACKUP playlist is rewritten in place.
+        const bd = path.join(tmp, 'BD');
+        fs.cpSync(h.fx('bd_movie'), bd, { recursive: true });
+        const backup = path.join(bd, 'BDMV', 'BACKUP', 'PLAYLIST', '00000.mpls');
+        if (!fs.existsSync(backup)) {
+          fs.mkdirSync(path.dirname(backup), { recursive: true });
+          fs.copyFileSync(path.join(bd, 'BDMV', 'PLAYLIST', '00000.mpls'), backup);
+        }
+        const ino1 = fs.statSync(bd).ino;
+        await h.load(bd);
+        h.assert.equal(await h.js('state.disc && state.disc.type'), 'bluray', 'the Blu-ray copy was scanned');
+        const ok4 = await call(h, `spinarr.probe(${q(bd)}, 1)`);
+        h.assert.equal(ok4.ok, true, `probe works for the Blu-ray scanned with consent: ${ok4.e}`);
+        fs.appendFileSync(backup, Buffer.from([0]));
+        h.assert.equal(fs.statSync(bd).ino, ino1, 'the Blu-ray folder itself was not replaced');
+        await refused(`spinarr.probe(${q(bd)}, 1)`, 'probe after a BACKUP playlist was rewritten');
+        await refused(`spinarr.rip([{ source: ${q(bd)}, title: 1, duration: 12, fileName: 'inplace-bd', displayName: 'x' }])`, 'rip after a BACKUP playlist was rewritten');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of an edited Blu-ray folder enqueues nothing');
+
+        h.assert.ok(!files(h.outDir).some((f) => f.startsWith('inplace-')), 'no output is written for an edited source');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+  },
+
   sec_xss_prompt: {
     platforms: ['darwin', 'linux'], // Windows doesn't allow < > " in file names
     stories: ['SEC-08', 'SAFE-01'],
