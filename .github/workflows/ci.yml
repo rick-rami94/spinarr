@@ -1,6 +1,6 @@
 name: CI
 
-# Required checks on main are the job ids below: macos, linux, windows, audit.
+# Required checks on main are the job ids below: macos, linux, windows, audit, asan.
 # Do not rename them, add a `name:` key to a job, or add a `paths:` filter: any of those
 # would orphan a required check (a check that never reports blocks every PR).
 #
@@ -276,3 +276,46 @@ jobs:
         run: |
           pip3 install --user --require-hashes -r .github/requirements-audit.txt
           ~/.local/bin/zizmor --format plain --min-severity medium .github/workflows
+
+  # Replays the whole malicious-disc corpus against ASan+UBSan builds of dvdinfo/bdinfo, so
+  # memory errors that do not crash the release build still fail CI (SAFE-10). Never packaged.
+  asan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      # apt packages come from the signed Ubuntu archive (documented exception to D-16).
+      # meson is pinned and hash-verified.
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang libclang-rt-dev ninja-build pkg-config patch xz-utils
+          pip3 install --user --require-hashes -r .github/requirements-build.txt
+
+      # Restore only: this job fetches just libdvdread and libbluray, so saving here could
+      # store a partial tarball set under the key the linux job populates.
+      - name: Restore engine dependencies
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: engine/deps/*.tar.xz
+          key: engine-src-${{ hashFiles('engine/build.sh') }}
+
+      # High-entropy ASLR (mmap_rnd_bits=32) makes ASan die with DEADLYSIGNAL on GitHub's
+      # Ubuntu runners: actions/runner-images#9515.
+      - name: Allow ASan on GitHub runners
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Build sanitizer scanners
+        env:
+          CC: clang
+        run: sh engine/build.sh asan
+
+      - name: Replay the malicious-disc corpus under ASan/UBSan
+        run: SPINARR_ENGINE_BIN=engine/bin-asan node --test test/security/corpus.test.js
