@@ -36,6 +36,7 @@ The full threat model and test results are in [docs/SECURITY_TESTING.md](docs/SE
 - **No unsandboxed auto-scan.**
   - Physical discs scan automatically only when the engine sandbox is on.
   - Where it's off (Windows today, Linux without bubblewrap, or a dev run with `SPINARR_NO_SANDBOX`), Spinarr asks before every scan and never remembers the answer.
+    - A yes covers only that disc or image as it was when you scanned it. If it is ejected, swapped for another disc in the same drive or folder, or the image file has changed since, Spinarr refuses to probe or rip it until you scan again. A queued rip whose disc changed fails instead of running.
   - Disk images and folders are never scanned without a click.
 
-  The limit: the prompt is enforced in the main process, which also refuses to probe or rip a disc that hasn't been scanned. That protects against app bugs, not against a UI process that is already compromised.
+  The limit: the prompt and the same-disc check are enforced in the main process, which refuses to probe or rip a disc that hasn't been scanned or has changed since. "The same disc" is judged from file-system details (volume serial or device, file IDs, sizes, timestamps), not a hash of the contents. A disc built to copy those details exactly could pass. An eject always clears the answer. All of this protects against app bugs, not against a UI process that is already compromised.
