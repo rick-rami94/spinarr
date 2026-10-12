@@ -571,19 +571,24 @@ This is not a rename phase, but several deliverables live outside git. The plann
 | A7 | Fine-grained PATs or a GitHub App are the only token types that can create repository advisories (GITHUB_TOKEN has no `repository-advisories` permission) | Pattern 9 | If wrong, it's a simplification, not a blocker. |
 | A8 | `environment:` can be set conditionally (e.g. empty for non-tag/PR runs) in the build matrix | Pattern 4 | Otherwise split the Windows/macOS signing into tag-only jobs. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **D-04's literal `spctl -t install` command.**
    - Known: Apple DTS says dmg assessment is `-t open --context context:primary-signature`, and app assessment is `-t exec`.
    - Recommendation: the plan uses the correct commands and records the interpretation. Tell Rick.
+   - RESOLVED: 02-01 `build/verify-mac.sh` uses `-t open --context context:primary-signature` (dmg) and `-t exec` (app) plus `stapler validate`; deviation documented.
 2. **Fuzz run location and token type.**
    - Known: public CFLite actions leak crashes. Private-repo minutes cost money. Standalone mode is undocumented.
    - Recommendation: Wave 0 spike of the standalone run in the public repo, with the fallback runner if it fails. Use a GitHub App for tokens (one app: Contents R/W on the corpus repo, Repository advisories R/W on spinarr; mint per step with `actions/create-github-app-token`). Ask Rick to accept the App setup, or two PATs.
+   - RESOLVED: 02-08 runs the standalone spike with the libFuzzer-runner fallback; token type is a decision checkpoint in 02-04.
 3. **Where v0.2.0 is tagged from.**
    - Known: work is on `milestone/v1.0`, `main` is protected, and Phase 2 runs in parallel with Phases 3-7.
    - Recommendation: tag from `main` after the Phase 2 PR merges. Confirm with Rick.
+   - RESOLVED: v0.2.0 is tagged on `main` after merge (02-13 Task 2), preceded by an unsigned v0.2.0-rc.1 draft (02-12).
 4. **The existing v0.1.4 draft release.** Leave it as is, or include it in the D-08 note pass? It is unpublished. Ask at the D-08 checkpoint.
+   - RESOLVED: decided at the D-08 checkpoint (02-14 Task 2).
 5. **UI-SPEC for the About section.** `workflow.ui_phase` is true. The About section is small, but the plan-checker may expect a UI spec. The planner should decide whether a lightweight UI note is enough, given D-13's constraints.
+   - RESOLVED: no UI-SPEC; 02-06 follows the existing `renderSystem()` `.group-row` pattern.
 
 ## Environment Availability
 

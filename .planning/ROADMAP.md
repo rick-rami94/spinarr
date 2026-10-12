@@ -105,19 +105,36 @@ Plans:
 **Plans**: 14 plans in 6 waves
 
 Plans:
+**Wave 1**
+
 - [ ] 02-01-PLAN.md — macOS/Windows signing hooks, split entitlements, verify scripts (REL-01, REL-02)
 - [ ] 02-02-PLAN.md — pin parser, CycloneDX SBOM, THIRD_PARTY_NOTICES, build.sh fetch mode (REL-03, REL-04)
 - [ ] 02-03-PLAN.md — account runbook, verification guide, README; `release` env + Immutable Releases checkpoint
 - [ ] 02-04-PLAN.md — private fuzz corpus repo and scoped credential (checkpoints)
 - [ ] 02-05-PLAN.md — libFuzzer harnesses (DVDOpenFiles / bd_open_files) and scanner refactor (SAFE-10)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 02-06-PLAN.md — Settings > About: GPL notice, source link, third-party licenses (REL-04)
 - [ ] 02-07-PLAN.md — ASan corpus replay job, required check (SAFE-10)
 - [ ] 02-08-PLAN.md — ClusterFuzzLite build, unpatched sanity check, standalone-run spike, fuzz-run.sh (SAFE-10)
 - [ ] 02-09-PLAN.md — reproducible GPL source bundle + BUILDING.md (REL-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 02-10-PLAN.md — PR/nightly/weekly fuzz workflows with private crash reporting (SAFE-10)
 - [ ] 02-11-PLAN.md — release.yml: env-gated signing, dmg notarization, SBOM, source, cosign, attestations, draft (REL-01..04)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 02-12-PLAN.md — unsigned v0.2.0-rc.1 end-to-end rehearsal (checkpoint)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 02-13-PLAN.md — accounts, merge to main, signed v0.2.0 draft verification (checkpoints)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 02-14-PLAN.md — real-download check, publish, D-08 relabel of v0.1.x (checkpoints)
 
 **Research flag**: light (signing/notarization/attestation mechanics are HIGH confidence)
