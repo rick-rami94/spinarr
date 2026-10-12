@@ -162,6 +162,7 @@ const listDrives = () => platform.listDrives();
 let stopWatching;
 function watchVolumes() {
   stopWatching = platform.watch(async () => {
+    revalidateScans();
     abandonVanishedSource();
     send('drives-changed', await listDrives());
   });
@@ -187,7 +188,14 @@ async function readInfo(tool, source) {
   catch (e) { throw new Error(e instanceof SyntaxError ? 'Could not read the disc structure' : e.message); }
 }
 
+// SAFE-01 / CR-01: consent is bound to the medium as it was scanned, not to its path.
+function identityOf(src) {
+  try { return lib.mediumIdentity(src); } catch { return null; }
+}
+
 async function scan(source) {
+  let before;
+  try { before = lib.mediumIdentity(source); } catch { throw new Error('Source not found'); }
   const kind = lib.sourceKind(source);
   let json;
   if (kind === 'bluray') json = await readInfo('bdinfo', source);
@@ -200,20 +208,47 @@ async function scan(source) {
     }
   }
   if (json.error) throw new Error(String(json.error));
+  let after = null;
+  try { after = lib.mediumIdentity(source); } catch {}
+  if (after !== before) throw new Error('The disc changed while it was being scanned. Scan it again.');
   const result = { ...lib.analyzeTitles(json, source), type: json.type === 'bluray' ? 'bluray' : 'dvd', encryption: json.encryption || null };
   result.blocked = result.type === 'bluray' ? blurayBlocker(result.encryption) : null;
   // The UI offers "Choose KEYDB.cfg…" when the user's own key file is what's missing.
   const enc = result.encryption;
   result.keydbFixable = !!(result.blocked && enc && enc.aacs && !enc.aacsHandled && enc.libaacs && ![-1, -6].includes(enc.aacsError));
   if (scans.size > 50) scans.delete(scans.keys().next().value);
-  scans.set(source, result);
+  scans.set(source, { ...result, identity: before }); // the identity never goes to the renderer
   return result;
+}
+
+// The scans entry for src if the medium there is still the one that was scanned; otherwise
+// the entry is dropped (swapped, overwritten, ejected) and null is returned.
+function scannedSame(src) {
+  const entry = scans.get(src);
+  if (!entry) return null;
+  if (identityOf(src) === entry.identity) return entry;
+  scans.delete(src);
+  return null;
+}
+
+// SAFE-01 / CR-01: consent covers this medium as scanned; checked at every spawn point
+// (probe, enqueue, pump, prepareBluray, start).
+function assertScanGate(src) {
+  if (sandboxTrusted()) return;
+  if (!scans.has(src)) throw new Error(lib.RESCAN_NOT_SCANNED);
+  if (!scannedSame(src)) throw new Error(lib.RESCAN_CHANGED);
+}
+
+// On any volume change, forget scans of media that vanished or changed. Runs whether or not
+// the sandbox is trusted: a stale scan of a swapped disc is wrong either way.
+function revalidateScans() {
+  for (const key of [...scans.keys()]) scannedSame(key);
 }
 
 function scannedTitle(source, title) {
   const disc = scans.get(source);
   const t = disc?.titles.find((x) => x.title === title);
-  if (!disc || !t) throw new Error('Scan the disc again before ripping');
+  if (!disc || !t) throw new Error(lib.RESCAN_NOT_SCANNED);
   return { disc, t };
 }
 
@@ -270,8 +305,8 @@ function enqueue(jobs) {
   if (!Array.isArray(jobs) || jobs.length > 99) throw new Error('Invalid job list');
   const clean = jobs.map((j) => {
     const job = lib.validateJob(j);
-    // SAFE-01: never parse an unscanned disc unsandboxed (SAFE-11 makes this universal later).
-    if (!sandboxTrusted() && !scans.has(job.source)) throw new Error('Scan the disc again before ripping');
+    // SAFE-01: never parse an unscanned or changed disc unsandboxed (SAFE-11 makes this universal later).
+    assertScanGate(job.source);
     const disc = scans.get(job.source);
     if (disc?.type === 'bluray') {
       const blocked = blurayBlocker(disc.encryption);
@@ -311,6 +346,8 @@ function pump() {
   active = job;
   job.state = 'ripping';
   job.startedAt = Date.now();
+  // WR-08: the disc may have been swapped while the job sat in the queue.
+  try { assertScanGate(job.source); } catch (e) { return finish(job, 'failed', e.message); }
 
   let final;
   try {
@@ -333,6 +370,7 @@ function pump() {
 }
 
 async function prepareBluray(job, part) {
+  assertScanGate(job.source);
   const { j } = await probeStreams(job.source, job.title);
   const all = (j.streams || []).filter((s) => ['video', 'audio', 'subtitle'].includes(s.codec_type));
   const chosen = job.streams ? all.filter((s) => job.streams.includes(s.index)) : all;
@@ -348,6 +386,11 @@ function start(job, args, part, final) {
   if (job.state !== 'ripping') {
     if (job.chaptersFile) fs.rmSync(job.chaptersFile, { force: true });
     return finish(job, 'cancelled');
+  }
+  // Immediately before spawn: covers the async gap after prepareBluray (WR-08).
+  try { assertScanGate(job.source); } catch (e) {
+    if (job.chaptersFile) fs.rmSync(job.chaptersFile, { force: true });
+    return finish(job, 'failed', e.message);
   }
   let proc;
   try {
@@ -446,7 +489,7 @@ handle('scan', (source, opts) => {
 });
 handle('probe', (source, title) => {
   const src = lib.validateSource(source);
-  if (!sandboxTrusted() && !scans.has(src)) throw new Error('Scan the disc first');
+  assertScanGate(src);
   return probeTitle(src, lib.validateTitle(title));
 });
 handle('rip', (jobs) => enqueue(jobs));
