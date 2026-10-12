@@ -126,6 +126,7 @@ Plans:
 **Goal**: Opening a disc cannot compromise the computer on any OS: every engine tool runs deny-by-default with no network, each OS's sandbox is functionally probed at startup, and the app tells the user exactly how much isolation is in force.
 **Depends on**: Phase 3 (capability seam and per-job staging folder)
 **Requirements**: SAFE-02, SAFE-03, SAFE-04, SAFE-05, SAFE-06, SAFE-09, SAFE-13, PLAT-02
+**Carries**: the SAFE-01 residual from Phase 1 (lazy re-reads after the spawn-time check, crafted clip_id names, same-size rewrites with restored timestamps). The Windows sandbox (SAFE-05, SF-1) and the Linux no-bwrap path must remove it; see SECURITY.md.
 **Success Criteria** (what must be TRUE):
 
   1. The Windows device-access spike runs first (NtObjectManager against the real drives via VM USB passthrough) and its outcome is recorded as a decision: encrypted physical rips use the AppContainer if it can open the drive, otherwise a disclosed restricted-token + low-integrity + job-object sandbox with no network.

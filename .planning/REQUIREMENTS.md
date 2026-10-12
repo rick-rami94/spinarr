@@ -14,6 +14,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 - [ ] **SAFE-03**: On Linux, Spinarr ships its own bubblewrap with an AppArmor profile scoped to that binary. Engines run with a seccomp deny-list filter. A startup probe checks the sandbox actually works, and Settings shows the real status. [SF-7]
 - [ ] **SAFE-04**: On Ubuntu 24.04+ the deb's sandbox works out of the box. The AppImage reports reduced isolation and disables auto-scan when bwrap can't run. The Electron renderer sandbox is never silently disabled.
 - [ ] **SAFE-05**: On Windows, scans and disc-image or unencrypted rips run in an AppContainer with no capabilities, inside a job object. Access is granted per job, and the engine has no network access. [SF-1]
+  - Must also close the SAFE-01 residual: the unsandboxed engine re-opens disc files lazily after the spawn-time same-disc check, a crafted playlist clip_id can name files the fingerprint skips, and a same-size rewrite with restored timestamps passes the check (01-REVIEW.md WR-10, WR-08, T-01-44; disclosed in SECURITY.md).
 - [ ] **SAFE-06**: On Windows, an early spike decides how encrypted physical discs are handled.
   - If the AppContainer can open the drive device, they use it.
   - Otherwise they use a weaker sandbox: restricted token, low integrity, job object, no network. Settings and the docs say so plainly.
@@ -136,7 +137,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SAFE-01 | Phase 1 | In Progress (identity coverage gap fixed in 01-13/01-14; awaiting re-verification) |
+| SAFE-01 | Phase 1 | In Progress (traverse-only bypass fixed in 01-15; residual documented and scoped to SF-1 / SAFE-05; awaiting re-verification) |
 | SAFE-02 | Phase 4 | Pending |
 | SAFE-03 | Phase 4 | Pending |
 | SAFE-04 | Phase 4 | Pending |
