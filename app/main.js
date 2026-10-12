@@ -11,6 +11,13 @@ const ENGINE = app.isPackaged
   ? path.join(process.resourcesPath, 'engine')
   : process.env.SPINARR_ENGINE_DIR || path.join(__dirname, '..', 'engine', 'bin');
 const bin = (name) => path.join(ENGINE, platform.exe(name));
+// Bundled license files (REL-04). Fixed paths only: no environment override, so nothing outside
+// the app can choose what the About section reads or opens.
+const RESOURCES = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
+const NOTICES = path.join(RESOURCES, 'THIRD_PARTY_NOTICES.txt');
+const CHROMIUM_LICENSES = app.isPackaged
+  ? path.join(RESOURCES, 'licenses', 'LICENSES.chromium.html')
+  : path.join(__dirname, '..', 'node_modules', 'electron', 'dist', 'LICENSES.chromium.html');
 // The UI is served from its own origin (app://spinarr/) instead of file://, so CSP 'self'
 // means "Spinarr's renderer files" rather than "any file on disk" (e.g. on a hostile disc).
 const RENDERER_DIR = path.join(__dirname, 'renderer');
@@ -517,6 +524,17 @@ handle('eject', async (p) => {
 // What Settings shows. sandboxTrusted is the same signal the scan gate uses.
 const systemInfo = () => ({ ...platform.info(), sandbox: sandboxTrusted() ? platform.sandboxKind : 'none', sandboxTrusted: sandboxTrusted() });
 handle('system', () => systemInfo());
+// What Settings > About shows (REL-04, D-13). Main builds every target: the source link comes from
+// our own version and the license paths are fixed, so the renderer passes nothing and cannot steer
+// either the URL that opens in the browser or the file that opens on disk.
+const sourceReleaseUrl = () => `https://github.com/rick-rami94/spinarr/releases/tag/v${app.getVersion()}`;
+handle('about', () => ({ version: app.getVersion(), license: 'GPL-3.0-or-later', sourceUrl: sourceReleaseUrl() }));
+handle('notices', () => {
+  if (!fs.existsSync(NOTICES)) throw new Error('Third-party notices are missing from this build');
+  return fs.readFileSync(NOTICES, 'utf8');
+});
+handle('open-source-release', () => shell.openExternal(sourceReleaseUrl()));
+handle('open-chromium-licenses', () => shell.openPath(CHROMIUM_LICENSES));
 // Windows: let the user hand us libdvdcss-2.dll (we never download or ship it).
 handle('install-dvdcss', async () => {
   if (!platform.isWin) throw new Error('Only needed on Windows');

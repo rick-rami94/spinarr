@@ -60,6 +60,18 @@
           "bdinfo",
           "*.exe"
         ]
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.txt",
+        "to": "THIRD_PARTY_NOTICES.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSE",
+        "to": "licenses/LICENSE.electron.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "licenses/LICENSES.chromium.html"
       }
     ],
     "asar": true,
