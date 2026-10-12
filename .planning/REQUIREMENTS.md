@@ -9,7 +9,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 
 ### Engine Sandbox & Security (SAFE)
 
-- [ ] **SAFE-01**: A disc is never scanned automatically while the engine sandbox is inactive, on any OS. The user sees why, and must click to scan. [SF-1]
+- [x] **SAFE-01**: A disc is never scanned automatically while the engine sandbox is inactive, on any OS. The user sees why, and must click to scan. [SF-1]
 - [ ] **SAFE-02**: On macOS, every engine tool runs under a deny-by-default sandbox profile, one profile per tool. Tests prove these are denied: `/tmp` reads, `$HOME` stat, Mach lookups (pasteboard, LaunchServices) and network. A real-drive rip still succeeds. [SF-2]
 - [ ] **SAFE-03**: On Linux, Spinarr ships its own bubblewrap with an AppArmor profile scoped to that binary. Engines run with a seccomp deny-list filter. A startup probe checks the sandbox actually works, and Settings shows the real status. [SF-7]
 - [ ] **SAFE-04**: On Ubuntu 24.04+ the deb's sandbox works out of the box. The AppImage reports reduced isolation and disables auto-scan when bwrap can't run. The Electron renderer sandbox is never silently disabled.

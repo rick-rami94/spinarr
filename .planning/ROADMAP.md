@@ -69,7 +69,7 @@ Plans:
 
 **Gap closure — Wave 1** *(CR-01 / WR-08, SAFE-01)*
 
-- [ ] 01-11-PLAN.md — Bind scan consent to medium identity (lib.mediumIdentity); gate probe/enqueue/pump/start; revalidate scans on volume change
+- [x] 01-11-PLAN.md — Bind scan consent to medium identity (lib.mediumIdentity); gate probe/enqueue/pump/start; revalidate scans on volume change
 
 **Gap closure — Wave 2** *(blocked on 01-11)*
 
@@ -198,7 +198,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 10/10 | Gaps found (CR-01) | - |
+| 1. Safety Gate & CI Baseline | 11/12 | In Progress|  |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
