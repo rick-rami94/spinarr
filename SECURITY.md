@@ -12,6 +12,10 @@ Please **don't open a public issue**. Report it privately through GitHub's **Sec
 
 We aim to acknowledge reports within 3 days and ship a fix or mitigation within 30 days. Bugs in libdvdread, libdvdnav or ffmpeg are reported upstream as well, with credit to you unless you'd rather stay anonymous.
 
+### Fuzzing
+
+Spinarr fuzzes its disc parsers continuously. Crashes it finds are filed as private draft security advisories, and the crashing inputs are kept in a private repository until a fix ships. Fixes ship as engine patches (`engine/patches/`) and are reported privately to the upstream VideoLAN projects. The full flow is in [docs/RELEASING.md](docs/RELEASING.md#fuzz-crash-handling). If you find a bug yourself, fuzzing or not, still report it privately as described above.
+
 ## Supported versions
 
 Only the latest release gets security fixes.
