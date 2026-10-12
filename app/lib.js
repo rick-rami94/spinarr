@@ -1,4 +1,5 @@
 // Pure logic shared by the main process and the test suite. No Electron imports.
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -206,6 +207,41 @@ function sourceKind(dir, { stat = fs.statSync } = {}) {
   return null;
 }
 
+// Filesystem identity for the SAFE-01 consent binding (CR-01); the disc-ID catalog is Phase 3.
+// A string that changes when the medium at `source` changes: swapped, overwritten, replaced or
+// remounted. No atime/ctime: plain reads and xattr writes (quarantine, Spotlight) change those.
+const MAX_IDENTITY_ENTRIES = 5000;
+const IDENTITY_DIRS = { dvd: ['VIDEO_TS'], bluray: ['BDMV', 'BDMV/PLAYLIST', 'BDMV/CLIPINF', 'BDMV/STREAM'] };
+
+function mediumIdentity(source, { stat = fs.statSync, readdir = fs.readdirSync } = {}) {
+  const big = (p) => stat(p, { bigint: true });
+  const st = big(source); // throws when the source is gone
+  if (st.isFile()) return 'file:' + [st.dev, st.ino, st.size, st.mtimeNs, st.birthtimeNs].join('|');
+  const kind = sourceKind(source, { stat: (p) => stat(p) });
+  if (!kind) throw new Error('Source changed');
+  const lines = [`root|${st.dev}|${st.ino}`];
+  let statted = 0;
+  let skipped = 0;
+  for (const rel of IDENTITY_DIRS[kind]) {
+    let names;
+    try { names = readdir(path.join(source, ...rel.split('/'))); } catch { lines.push(`${rel}|missing`); continue; }
+    for (const name of [...names].map(String).sort()) {
+      if (statted >= MAX_IDENTITY_ENTRIES) { skipped++; continue; }
+      statted++;
+      try {
+        const e = big(path.join(source, ...rel.split('/'), name));
+        lines.push(`${rel}/${name}|${e.ino}|${e.size}|${e.mtimeNs}`);
+      } catch { lines.push(`${rel}/${name}|gone`); }
+    }
+  }
+  if (skipped) lines.push(`+${skipped}`);
+  return `${kind}:` + crypto.createHash('sha256').update(lines.join('\n')).digest('hex');
+}
+
+// Shared refusal wording: both start with "Scan the disc again" (renderer + e2e match on it).
+const RESCAN_NOT_SCANNED = 'Scan the disc again before ripping';
+const RESCAN_CHANGED = 'Scan the disc again. It was removed or changed since it was scanned.';
+
 // Why an encrypted Blu-ray can't be ripped (from bdinfo's encryption report), or null if it
 // can. aacsError is libbluray's BD_AACS_* code, so the message says what's actually wrong.
 function blurayBlocker(enc, keydbPath, installCommand = 'brew install libaacs') {
@@ -324,4 +360,5 @@ module.exports = {
   sourceKind, chaptersMetadata, blurayRipArgs, outputVideoSeconds,
   SANDBOX_PROFILE, sandboxed, volumeKind,
   validateSource, validateTitle, validateJob, validateScanOptions, scanGate, SANDBOX_OFF, sanitizeSettingsPatch, SKINS,
+  mediumIdentity, RESCAN_NOT_SCANNED, RESCAN_CHANGED,
 };
