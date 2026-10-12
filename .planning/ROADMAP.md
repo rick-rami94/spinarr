@@ -13,7 +13,7 @@ Spinarr v0.1.3 already proves the hard part: bit-exact remuxing with a patched, 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Safety Gate & CI Baseline** - No unsandboxed auto-scan anywhere, plus quick wins: vuln reporting, SHA-pinned CI, neutral README, hermetic e2e, coverage baseline, full Windows CI
+- [x] **Phase 1: Safety Gate & CI Baseline** - No unsandboxed auto-scan anywhere, plus quick wins: vuln reporting, SHA-pinned CI, neutral README, hermetic e2e, coverage baseline, full Windows CI (completed 2026-10-12)
 - [ ] **Phase 2: Trust & Distribution** - Signed and notarized installers, provenance attestations, signed checksums, SBOM, GPL source bundle, fuzzing in CI (parallel-capable track)
 - [ ] **Phase 3: Rip Foundations** - Disc-ID scan catalog, main-process-only scan truth, staged atomic durable output, and a journaled queue state machine
 - [ ] **Phase 4: Sandbox Everywhere** - Windows AppContainer spike first, then deny-default engine sandboxes on macOS, Linux and Windows with honest status reporting
@@ -73,7 +73,7 @@ Plans:
 
 **Gap closure — Wave 2** *(blocked on 01-11)*
 
-- [ ] 01-12-PLAN.md — sec_gate_swap e2e (eject/swap/overwrite/queued), tightened sec_gate_ipc, truthful SECURITY.md, SAFE-01 left pending re-verification
+- [x] 01-12-PLAN.md — sec_gate_swap e2e (eject/swap/overwrite/queued), tightened sec_gate_ipc, truthful SECURITY.md, SAFE-01 left pending re-verification
 
 **UI hint**: yes
 
@@ -198,7 +198,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 11/12 | In Progress|  |
+| 1. Safety Gate & CI Baseline | 12/12 | Complete   | 2026-10-12 |
 | 2. Trust & Distribution | 0/TBD | Not started | - |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 01-11-PLAN.md
-last_updated: "2026-10-12T11:45:20.486Z"
+status: verifying
+stopped_at: Completed 01-08-PLAN.md
+last_updated: "2026-10-12T11:52:58.208Z"
 last_activity: 2026-10-12
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 12
-  completed_plans: 11
-  percent: 0
+  completed_plans: 12
+  percent: 13
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-10-10)
 
 Phase: 01 (safety-gate-ci-baseline) — EXECUTING
 Plan: 12 of 12
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-12
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [█████████░] 92%
 *Updated after each plan completion*
 | Phase 01 P01 | 5 min | 3 tasks | 0 files |
 | Phase 01 P11 | 6 min | 2 tasks | 3 files |
+| Phase 01 P12 | 12 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,8 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-01: approve-all; milestone/v1.0 published, draft PR #2 open, private vuln reporting + Dependabot alerts/security updates enabled
 - [Phase 01]: 01-08: e2e hermeticity is proven at the platform level (keyDirs/cssCache/keydbPath under SPINARR_TEST_HOME, keydb false); the CI-only real-home KEYDB sentinel's banner check accepts no-libaacs, no-KEYDB or -1 (fixture AACS files fail before key lookup)
 - [Phase 01]: 01-11: Scan consent bound to lib.mediumIdentity (fs identity, no atime/ctime); assertScanGate at probe/enqueue/pump/prepareBluray/start; revalidateScans on volume change
+- [Phase 01]: 01-12: sec_gate_swap e2e locks in medium-identity consent; fails against the old path-only probe gate
+- [Phase 01]: 01-12: SAFE-01 left unchecked, awaiting phase re-verification (Windows CI must show sec_gate_swap passing)
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-12T11:45:13.649Z
+Last session: 2026-10-12T11:52:48.798Z
 Stopped at: Completed 01-08-PLAN.md
 Resume file: None
