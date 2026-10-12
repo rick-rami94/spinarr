@@ -469,7 +469,7 @@ test('mediumIdentity: a removed source or a folder that lost VIDEO_TS/BDMV throw
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('mediumIdentity: an entry that vanishes mid-walk is recorded, and the stat walk is capped', () => {
+test('mediumIdentity: an entry that vanishes mid-walk is recorded, and more entries than the cap refuses instead of passing', () => {
   const dir = idTmp('cap');
   try {
     const root = path.join(dir, 'MOVIE');
@@ -477,12 +477,135 @@ test('mediumIdentity: an entry that vanishes mid-walk is recorded, and the stat 
     const vob = path.join(root, 'VIDEO_TS', 'VTS_01_1.VOB');
     const flaky = (p, o) => { if (p === vob) throw new Error('ENOENT'); return fs.statSync(p, o); };
     assert.notEqual(lib.mediumIdentity(root, { stat: flaky }), lib.mediumIdentity(root));
-    // More names than the cap: names beyond it still count (adding one changes the result)
-    const names = Array.from({ length: 5002 }, (_, i) => `F${String(i).padStart(5, '0')}.VOB`);
+    // The cap fails closed: past it, the walk throws IDENTITY_TOO_MANY (identityOf -> null -> refusal)
+    assert.equal(typeof lib.MAX_IDENTITY_ENTRIES, 'number');
+    assert.ok(lib.MAX_IDENTITY_ENTRIES >= 20000);
+    assert.equal(typeof lib.IDENTITY_TOO_MANY, 'string');
+    assert.ok(lib.IDENTITY_TOO_MANY.length > 0);
+    const names = Array.from({ length: lib.MAX_IDENTITY_ENTRIES + 1 }, (_, i) => `F${String(i).padStart(5, '0')}.VOB`);
     const readdir = (p) => (p.endsWith('VIDEO_TS') ? names : fs.readdirSync(p));
     const big = (p, o) => (p.startsWith(path.join(root, 'VIDEO_TS') + path.sep) ? fs.statSync(path.join(root, 'VIDEO_TS', 'VIDEO_TS.IFO'), o) : fs.statSync(p, o));
-    const x = lib.mediumIdentity(root, { stat: big, readdir });
-    names.push('F99999.VOB');
-    assert.notEqual(lib.mediumIdentity(root, { stat: big, readdir }), x);
+    assert.throws(() => lib.mediumIdentity(root, { stat: big, readdir }), (e) => e instanceof Error && e.message === lib.IDENTITY_TOO_MANY);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Each case gets a fresh DVD and checks one change against its own baseline.
+function dvdChanges(tag, edit) {
+  const dir = idTmp(tag);
+  try {
+    const root = path.join(dir, 'MOVIE');
+    makeDvd(root);
+    const a = lib.mediumIdentity(root);
+    edit(root);
+    return lib.mediumIdentity(root) !== a;
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+const put = (root, rel, data = 'NEW') => {
+  const p = path.join(root, ...rel.split('/'));
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, data);
+};
+
+test('mediumIdentity: a root-level IFO added to a DVD folder changes identity (libdvdread searches the root first)', () => {
+  assert.ok(dvdChanges('dvdroot', (r) => put(r, 'VTS_01_0.IFO', 'IFO')));
+  assert.ok(dvdChanges('dvdrootlc', (r) => put(r, 'vts_01_1.vob', 'VOB')));
+});
+
+test('mediumIdentity: files in video_ts, AUDIO_TS and DVD_RTAV change a DVD identity', () => {
+  assert.ok(dvdChanges('dvdlc', (r) => put(r, 'video_ts/VTS_02_0.IFO', 'IFO')));
+  assert.ok(dvdChanges('dvdats', (r) => put(r, 'AUDIO_TS/AUDIO_TS.IFO', 'IFO')));
+  assert.ok(dvdChanges('dvdvr', (r) => put(r, 'DVD_RTAV/VR_MANGR.IFO', 'IFO')));
+});
+
+test('mediumIdentity: OS metadata files do not change a DVD identity', () => {
+  const dir = idTmp('dvdjunk');
+  try {
+    const root = path.join(dir, 'MOVIE');
+    makeDvd(root);
+    const a = lib.mediumIdentity(root);
+    put(root, '.DS_Store');
+    put(root, 'VIDEO_TS/.DS_Store');
+    put(root, 'VIDEO_TS/._VTS_01_1.VOB');
+    put(root, 'Thumbs.db');
+    put(root, 'desktop.ini');
+    put(root, 'VIDEO_TS/Thumbs.db');
+    put(root, 'VIDEO_TS/desktop.ini');
+    put(root, 'ehthumbs.db');
+    put(root, '.Spotlight-V100/Store-V2/x');
+    assert.equal(lib.mediumIdentity(root), a);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+const BD_FILES = [
+  'BDMV/index.bdmv', 'BDMV/MovieObject.bdmv', 'BDMV/PLAYLIST/00000.mpls', 'BDMV/CLIPINF/00000.clpi',
+  'BDMV/STREAM/00000.m2ts', 'BDMV/BACKUP/index.bdmv', 'BDMV/BACKUP/PLAYLIST/00000.mpls',
+  'BDMV/BACKUP/CLIPINF/00000.clpi', 'AACS/Unit_Key_RO.inf', 'AACS/MKB_RO.inf', 'AACS/DUPLICATE/Unit_Key_RO.inf',
+  'CERTIFICATE/id.bdmv', 'CERTIFICATE/BACKUP/id.bdmv',
+];
+function makeBluray(root) {
+  for (const rel of BD_FILES) {
+    put(root, rel, `ORIG:${rel}`);
+    fs.utimesSync(path.join(root, ...rel.split('/')), FIXED, FIXED);
+  }
+}
+// Fresh Blu-ray per case; the root inode must not move, so only the edited file can explain a change.
+function blurayChanges(tag, edit) {
+  const dir = idTmp(tag);
+  try {
+    const root = path.join(dir, 'BD');
+    makeBluray(root);
+    const ino = fs.statSync(root).ino;
+    const a = lib.mediumIdentity(root);
+    assert.ok(a.startsWith('bluray:'));
+    edit(root);
+    assert.equal(fs.statSync(root).ino, ino);
+    return lib.mediumIdentity(root) !== a;
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+const rewrite = (rel) => (root) => fs.writeFileSync(path.join(root, ...rel.split('/')), `REWRITTEN:${rel}:longer`);
+
+test('mediumIdentity: a rewritten BDMV/BACKUP playlist, clip or index changes identity', () => {
+  for (const rel of ['BDMV/BACKUP/PLAYLIST/00000.mpls', 'BDMV/BACKUP/CLIPINF/00000.clpi', 'BDMV/BACKUP/index.bdmv']) {
+    assert.ok(blurayChanges('bdbak', rewrite(rel)), rel);
+  }
+});
+
+test('mediumIdentity: a same-size rewrite of a BACKUP playlist with a new mtime changes identity', () => {
+  const rel = 'BDMV/BACKUP/PLAYLIST/00000.mpls';
+  assert.ok(blurayChanges('bdsame', (root) => {
+    const p = path.join(root, ...rel.split('/'));
+    const len = fs.statSync(p).size;
+    fs.writeFileSync(p, 'Z'.repeat(len));
+    const t = new Date('2021-06-01T00:00:00Z');
+    fs.utimesSync(p, t, t);
+    assert.equal(fs.statSync(p).size, len);
+  }));
+});
+
+test('mediumIdentity: a rewritten AACS file changes identity', () => {
+  assert.ok(blurayChanges('bdaacs', rewrite('AACS/Unit_Key_RO.inf')));
+  assert.ok(blurayChanges('bdaacsdup', rewrite('AACS/DUPLICATE/Unit_Key_RO.inf')));
+});
+
+test('mediumIdentity: a rewritten CERTIFICATE file changes identity', () => {
+  assert.ok(blurayChanges('bdcert', rewrite('CERTIFICATE/id.bdmv')));
+  assert.ok(blurayChanges('bdcertbak', rewrite('CERTIFICATE/BACKUP/id.bdmv')));
+});
+
+test('mediumIdentity: META, JAR and BDSVM files added to a Blu-ray change identity', () => {
+  assert.ok(blurayChanges('bdmeta', (r) => put(r, 'BDMV/META/DL/bdmt_eng.xml', '<xml/>')));
+  assert.ok(blurayChanges('bdjar', (r) => put(r, 'BDMV/JAR/00000.jar', 'PK')));
+  assert.ok(blurayChanges('bdsvm', (r) => put(r, 'BDSVM/00000.svm', 'SVM')));
+});
+
+test('mediumIdentity: OS metadata files do not change a Blu-ray identity', () => {
+  assert.equal(blurayChanges('bdjunk', (r) => {
+    put(r, 'BDMV/PLAYLIST/.DS_Store');
+    put(r, 'BDMV/PLAYLIST/._00000.mpls');
+    put(r, 'BDMV/BACKUP/.DS_Store');
+  }), false);
+});
+
+test('mediumIdentity: desktop.ini in BDMV/PLAYLIST changes identity because libbluray parses it', () => {
+  assert.ok(blurayChanges('bdini', (r) => put(r, 'BDMV/PLAYLIST/desktop.ini', '[.ShellClassInfo]')));
 });
