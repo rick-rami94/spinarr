@@ -115,10 +115,10 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-06-PLAN.md — Settings > About: GPL notice, source link, third-party licenses (REL-04)
+- [x] 02-06-PLAN.md — Settings > About: GPL notice, source link, third-party licenses (REL-04)
 - [ ] 02-07-PLAN.md — ASan corpus replay job, required check (SAFE-10)
-- [ ] 02-08-PLAN.md — ClusterFuzzLite build, unpatched sanity check, standalone-run spike, fuzz-run.sh (SAFE-10)
-- [ ] 02-09-PLAN.md — reproducible GPL source bundle + BUILDING.md (REL-04)
+- [x] 02-08-PLAN.md — ClusterFuzzLite build, unpatched sanity check, standalone-run spike, fuzz-run.sh (SAFE-10)
+- [x] 02-09-PLAN.md — reproducible GPL source bundle + BUILDING.md (REL-04)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -246,7 +246,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Safety Gate & CI Baseline | 15/15 | Complete | 2026-10-12 |
-| 2. Trust & Distribution | 3/14 | In Progress|  |
+| 2. Trust & Distribution | 6/14 | In Progress|  |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
 | 5. Verified Rips | 0/TBD | Not started | - |
