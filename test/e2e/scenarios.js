@@ -245,7 +245,7 @@ Object.assign(module.exports, {
 
   sec_gate_ipc: {
     stories: ['SAFE-01', 'SEC-04'],
-    title: 'Sandbox off: main refuses a scan without consent, and probe/rip of an unscanned source',
+    title: 'Sandbox off: main refuses a scan without consent, probe/rip of an unscanned source, and probe of a changed medium',
     env: { SPINARR_NO_SANDBOX: '1' },
     async run(h) {
       const src = JSON.stringify(h.fx('ntsc_basic.iso'));
@@ -260,12 +260,111 @@ Object.assign(module.exports, {
       const bad = await call(h, `spinarr.scan(${src}, 'x')`);
       h.assert.equal(bad.ok, false);
       h.assert.match(bad.e, /Invalid scan options/);
-      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, false, 'probe of an unscanned source is refused');
-      h.assert.equal((await call(h, `spinarr.rip([{ source: ${src}, title: 1 }])`)).ok, false, 'rip of an unscanned source is refused');
+      const probe = await call(h, `spinarr.probe(${src}, 1)`);
+      h.assert.equal(probe.ok, false, 'probe of an unscanned source is refused');
+      h.assert.match(probe.e, /Scan the disc again/, 'probe is refused because the source was not scanned');
+      const rip = await call(h, `spinarr.rip([{ source: ${src}, title: 1 }])`);
+      h.assert.equal(rip.ok, false, 'rip of an unscanned source is refused');
+      h.assert.match(rip.e, /Scan the disc again/, 'rip is refused because the source was not scanned');
       h.assert.equal(await h.js('state.queue.length'), 0);
-      await h.load(h.fx('ntsc_basic.iso')); // the real prompt and button
-      h.assert.equal(await h.js('state.disc.titles.length'), 2);
-      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, true, 'probe works once the source was scanned with consent');
+      // Consent covers the medium as scanned, not its path: a changed copy must be scanned again.
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-gate-'));
+      try {
+        const copy = path.join(tmp, 'copy.iso');
+        fs.copyFileSync(h.fx('ntsc_basic.iso'), copy);
+        await h.load(copy); // the real prompt and button
+        h.assert.equal(await h.js('state.disc.titles.length'), 2);
+        h.assert.equal((await call(h, `spinarr.probe(${JSON.stringify(copy)}, 1)`)).ok, true, 'probe works for the unchanged medium scanned with consent');
+        fs.appendFileSync(copy, Buffer.from([0]));
+        const changed = await call(h, `spinarr.probe(${JSON.stringify(copy)}, 1)`);
+        h.assert.equal(changed.ok, false, 'consent does not survive a change to the image');
+        h.assert.match(changed.e, /Scan the disc again/, 'consent does not survive a change to the image');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+  },
+
+  sec_gate_swap: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: consent covers only the medium that was scanned; a swapped disc or image at the same path must be scanned again',
+    env: { SPINARR_NO_SANDBOX: '1', SPINARR_READRATE: '6' },
+    async run(h) {
+      // fakeEject reaches only the renderer, so the refusals here come from main's identity
+      // check (plan 01-11). That check is also what protects a real eject and reinsert.
+      // Every swap works on copies in a temp folder; the committed fixtures are only read.
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-swap-'));
+      const q = (v) => JSON.stringify(v);
+      const refused = async (expr, what) => {
+        const r = await call(h, expr);
+        h.assert.equal(r.ok, false, `${what} must be refused`);
+        h.assert.match(r.e, /Scan the disc again/, `${what} is refused with a rescan message`);
+      };
+      try {
+        // 1. Disc folder: consent, eject, swap another disc in at the same path.
+        const disc = path.join(tmp, 'DISC');
+        fs.cpSync(h.fx('ntsc_basic'), disc, { recursive: true });
+        h.fakeInsert('NTSC_BASIC', disc);
+        await expectPrompt(h, disc);
+        await expectScanAfterClick(h);
+        const ok1 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok1.ok, true, `probe works for the disc scanned with consent: ${ok1.e}`);
+        h.fakeEject();
+        await h.waitFor('state.drives.discs.length === 0', { what: 'fake eject' });
+        fs.rmSync(disc, { recursive: true, force: true });
+        fs.cpSync(h.fx('pal_subs'), disc, { recursive: true });
+        await refused(`spinarr.probe(${q(disc)}, 1)`, 'probe of a swapped disc folder');
+        await refused(`spinarr.rip([{ source: ${q(disc)}, title: 1, duration: 12, fileName: 'swap-folder', displayName: 'x' }])`, 'rip of a swapped disc folder');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of a swapped disc enqueues nothing');
+        // Scanning again through the real prompt restores probe for the new disc.
+        h.fakeInsert('PAL_SUBS', disc);
+        await expectPrompt(h, disc);
+        await expectScanAfterClick(h);
+        const ok2 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok2.ok, true, `probe works again after a consented rescan: ${ok2.e}`);
+
+        // 2. Disc image overwritten in place (same path, same inode, different size).
+        const iso = path.join(tmp, 'disc.iso');
+        fs.copyFileSync(h.fx('ntsc_basic.iso'), iso);
+        await h.load(iso);
+        h.assert.ok(await h.js('!!state.disc'), 'the image copy was scanned');
+        const ok3 = await call(h, `spinarr.probe(${q(iso)}, 1)`);
+        h.assert.equal(ok3.ok, true, `probe works for the image scanned with consent: ${ok3.e}`);
+        fs.writeFileSync(iso, fs.readFileSync(h.fx('pal_subs.iso')));
+        const isoProbe = await call(h, `spinarr.probe(${q(iso)}, 1)`);
+        h.assert.equal(isoProbe.ok, false, 'probe of an overwritten image must be refused');
+        h.assert.match(isoProbe.e, /Scan the disc again/, 'probe of an overwritten image is refused with a rescan message');
+        const isoRip = await call(h, `spinarr.rip([{ source: ${q(iso)}, title: 2, duration: 12, fileName: 'swap-iso', displayName: 'x' }])`);
+        h.assert.equal(isoRip.ok, false, 'rip of an overwritten image must be refused');
+        h.assert.match(isoRip.e, /Scan the disc again/, 'rip of an overwritten image is refused with a rescan message');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of an overwritten image enqueues nothing');
+
+        // 3. WR-08: a queued job whose source is overwritten while an earlier job rips.
+        const queued = path.join(tmp, 'queued.iso');
+        fs.copyFileSync(h.fx('ntsc_basic.iso'), queued);
+        await h.load(queued);
+        h.assert.ok(await h.js('!!state.disc'), 'the queued image was scanned');
+        const feature = h.fx('feature_disc.iso');
+        await h.load(feature);
+        const long = await h.js('(state.disc.titles.find(t => t.title === 4) || {}).duration');
+        h.assert.ok(long > 0, 'feature_disc title 4 has a duration');
+        const r = await call(h, `spinarr.rip([
+          { source: ${q(feature)}, title: 4, duration: ${long}, fileName: 'swap-long', displayName: 'a' },
+          { source: ${q(queued)}, title: 2, duration: 12, fileName: 'swap-queued', displayName: 'b' }])`);
+        h.assert.equal(r.ok, true, `both scanned, unchanged sources enqueue: ${r.e}`);
+        await h.waitFor('state.queue.length === 2 && state.queue[0].state === "ripping" && state.queue[1].state === "queued"', { timeout: 30000, what: 'job A ripping, job B queued' });
+        fs.writeFileSync(queued, fs.readFileSync(h.fx('pal_subs.iso')));
+        // Job A's outcome doesn't matter here; cancel it so the queue reaches job B quickly.
+        await h.click(`[data-cancel="${await h.js('state.queue[0].id')}"]`);
+        await h.idle(120000);
+        const jobs = await h.js('state.queue.map(j => ({ state: j.state, error: j.error || "" }))');
+        h.assert.notEqual(jobs[0].state, 'queued', 'job A left the queue');
+        h.assert.equal(jobs[1].state, 'failed', 'the queued job against a changed source fails');
+        h.assert.match(jobs[1].error, /Scan the disc again/, 'the queued job fails with a rescan message');
+        h.assert.ok(!files(h.outDir).some((f) => f.startsWith('swap-queued')), 'no output is written for the changed source');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     },
   },
 
