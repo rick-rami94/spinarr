@@ -94,6 +94,24 @@ jobs:
       - run: npm ci
       - name: Build engine (verified sources + patches)
         run: npm run engine
+      - name: Third-party notices are current
+        run: node scripts/gen-notices.js --check
+      # cyclonedx-cli is a release binary pinned by version and SHA-256. To bump it: pick the
+      # version, take the cyclonedx-linux-x64 asset digest from
+      # `gh release view vX.Y.Z -R CycloneDX/cyclonedx-cli --json assets`, check it against a
+      # local download (`sha256sum cyclonedx-linux-x64`), and update both values below.
+      - name: SBOM is valid CycloneDX 1.6
+        env:
+          CDX_VERSION: v0.33.1
+          CDX_SHA256: bfc8b2538da86fe239bc53658bbb63c1c8c510a293c1e6891aa5bea5d3c58746
+        run: |
+          cdx="$RUNNER_TEMP/cyclonedx"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$cdx" \
+            "https://github.com/CycloneDX/cyclonedx-cli/releases/download/$CDX_VERSION/cyclonedx-linux-x64"
+          echo "$CDX_SHA256  $cdx" | sha256sum -c -
+          chmod +x "$cdx"
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) node scripts/gen-sbom.js --version 0.0.0-ci --out "$RUNNER_TEMP/spinarr.cdx.json"
+          "$cdx" validate --input-file "$RUNNER_TEMP/spinarr.cdx.json" --input-format json --input-version v1_6 --fail-on-errors
       - name: Generate test DVDs and Blu-rays
         run: npm run fixtures
 
