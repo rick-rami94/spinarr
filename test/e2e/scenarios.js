@@ -433,6 +433,65 @@ Object.assign(module.exports, {
     },
   },
 
+  sec_gate_unlistable: {
+    platforms: ['darwin', 'linux'], // POSIX directory modes; Windows ACLs work differently
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: a disc folder made traverse-only after a consented scan is refused, not silently trusted',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      // CR-01 round 3: libbluray opens files by name, which needs only search permission. A
+      // traverse-only BDMV used to read as "missing" and freeze the identity while its files were
+      // edited. The walk must now refuse a folder it can't list.
+      if (process.getuid && process.getuid() === 0) {
+        h.assert.ok(true, 'skipped as root: uid 0 ignores directory permissions');
+        return;
+      }
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-unlistable-'));
+      const bd = path.join(tmp, 'BD');
+      const bdmv = path.join(bd, 'BDMV');
+      const q = (v) => JSON.stringify(v);
+      let bdmv2 = null;
+      try {
+        fs.cpSync(h.fx('bd_movie'), bd, { recursive: true });
+        await h.load(bd);
+        h.assert.equal(await h.js('state.disc && state.disc.type'), 'bluray', 'the Blu-ray copy was scanned');
+        const ok = await call(h, `spinarr.probe(${q(bd)}, 1)`);
+        h.assert.equal(ok.ok, true, `probe works for the Blu-ray scanned with consent: ${ok.e}`);
+        fs.chmodSync(bdmv, 0o311);
+        fs.appendFileSync(path.join(bdmv, 'index.bdmv'), Buffer.from([0])); // by name: still allowed
+        // Rip first: the first refusal drops the scan, so only it can carry the specific reason.
+        const rip = await call(h, `spinarr.rip([{ source: ${q(bd)}, title: 1, duration: 12, fileName: 'unlistable-bd', displayName: 'x' }])`);
+        h.assert.equal(rip.ok, false, 'rip of a traverse-only BDMV must be refused');
+        h.assert.match(rip.e, /Scan the disc again/, 'rip is refused with a rescan message');
+        h.assert.match(rip.e, /can't read every folder/, 'the refusal names the real reason');
+        const probe = await call(h, `spinarr.probe(${q(bd)}, 1)`);
+        h.assert.equal(probe.ok, false, 'probe of a traverse-only BDMV must be refused');
+        h.assert.match(probe.e, /Scan the disc again/, 'probe is refused with a rescan message');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip enqueues nothing');
+
+        // The 01-VERIFICATION repro: BDMV is traverse-only BEFORE the scan. The engine can still
+        // read every file by name, so the old walk froze the identity at consent time and any
+        // later edit passed. The scan itself must now refuse and name the reason.
+        const bd2 = path.join(tmp, 'BD2');
+        bdmv2 = path.join(bd2, 'BDMV');
+        fs.cpSync(h.fx('bd_movie'), bd2, { recursive: true });
+        fs.chmodSync(bdmv2, 0o311);
+        await h.load(bd2);
+        h.assert.equal(await h.js('state.disc'), null, 'a traverse-only Blu-ray is not scanned');
+        h.assert.match(String(await h.js('state.error')), /can't read every folder/, 'the scan error names the real reason');
+        fs.appendFileSync(path.join(bdmv2, 'index.bdmv'), Buffer.from([0]));
+        const probe2 = await call(h, `spinarr.probe(${q(bd2)}, 1)`);
+        h.assert.equal(probe2.ok, false, 'probe of a never-checked traverse-only Blu-ray must be refused');
+        h.assert.match(probe2.e, /Scan the disc again/, 'probe is refused with a rescan message');
+
+        h.assert.ok(!files(h.outDir).some((f) => f.startsWith('unlistable-')), 'no output is written');
+      } finally {
+        for (const d of [bdmv, bdmv2]) { if (d) { try { fs.chmodSync(d, 0o755); } catch {} } }
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+  },
+
   sec_xss_prompt: {
     platforms: ['darwin', 'linux'], // Windows doesn't allow < > " in file names
     stories: ['SEC-08', 'SAFE-01'],
