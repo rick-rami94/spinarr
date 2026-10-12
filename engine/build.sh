@@ -29,15 +29,15 @@ STATIC_LD=; if [ $OS = win ]; then STATIC_LD=-static; fi
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 mkdir -p bin "$DEPS"
 
-# name  version  url  sha256
+# name  version  url  sha256  spdx-license
 # ffmpeg's PGP signature was checked against FFmpeg release key
 # FCF986EA15E6E293A5644F10B4322F04D67658D8 when this pin was set. The videolan
 # hashes match the .sha256 files published next to each tarball.
 SOURCES="
-ffmpeg 8.0.1 https://ffmpeg.org/releases/ffmpeg-8.0.1.tar.xz 05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41
-libdvdread 7.1.1 https://download.videolan.org/pub/videolan/libdvdread/7.1.1/libdvdread-7.1.1.tar.xz a0d47876548bec806774bbf8dbf20bb19ba139464383156b32eb8e59915b90a9
-libdvdnav 7.0.0 https://download.videolan.org/pub/videolan/libdvdnav/7.0.0/libdvdnav-7.0.0.tar.xz a2a18f5ad36d133c74bf9106b6445806fa253b09141a46392550394b647b221e
-libbluray 1.5.0 https://download.videolan.org/pub/videolan/libbluray/1.5.0/libbluray-1.5.0.tar.xz f676408e91a5d321abf8b8d4dfdae36205c297dab5c54c3ec519639025f474a2
+ffmpeg 8.0.1 https://ffmpeg.org/releases/ffmpeg-8.0.1.tar.xz 05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41 GPL-3.0-or-later
+libdvdread 7.1.1 https://download.videolan.org/pub/videolan/libdvdread/7.1.1/libdvdread-7.1.1.tar.xz a0d47876548bec806774bbf8dbf20bb19ba139464383156b32eb8e59915b90a9 GPL-2.0-or-later
+libdvdnav 7.0.0 https://download.videolan.org/pub/videolan/libdvdnav/7.0.0/libdvdnav-7.0.0.tar.xz a2a18f5ad36d133c74bf9106b6445806fa253b09141a46392550394b647b221e GPL-2.0-or-later
+libbluray 1.5.0 https://download.videolan.org/pub/videolan/libbluray/1.5.0/libbluray-1.5.0.tar.xz f676408e91a5d321abf8b8d4dfdae36205c297dab5c54c3ec519639025f474a2 LGPL-2.1-or-later
 "
 
 # fetch <name>: download, verify, extract fresh into deps/<name>-<ver>, apply patches/<name>-*.patch
@@ -61,6 +61,12 @@ fetch() {
 }
 
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+
+# `build.sh fetch` downloads, verifies, extracts and patches every pinned source, then stops: used by the source bundle and the fuzz build.
+if [ "${1:-}" = fetch ]; then
+  for n in $(echo "$SOURCES" | awk 'NF {print $1}'); do fetch "$n" >/dev/null; done
+  exit 0
+fi
 
 # `build.sh scanners` rebuilds only dvdinfo/bdinfo against the already-built libraries.
 if [ "${1:-}" != scanners ]; then
