@@ -81,10 +81,12 @@
       "hardenedRuntime": true,
       "minimumSystemVersion": "12.0",
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "sign": "build/sign-mac.js"
     },
     "dmg": {
-      "title": "Spinarr ${version}"
+      "title": "Spinarr ${version}",
+      "sign": true
     },
     "linux": {
       "target": [
@@ -108,7 +110,13 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "signtoolOptions": {
+        "sign": "build/sign-win.js",
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      }
     },
     "nsis": {
       "oneClick": true,
