@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#ifndef SPINARR_FUZZ
 #include "argv_utf8.h"
+#endif
 #include <dvdread/dvd_reader.h>
 #include <dvdread/ifo_types.h>
 #include <dvdread/ifo_read.h>
@@ -72,18 +74,18 @@ static void program_span(const pgc_t *pgc, int pgn, double *secs, uint64_t *sect
     }
 }
 
-int main(int argc, char **argv)
+/* Print the title table of an open disc as JSON; returns the process exit status.
+ * The caller owns dvd (and closes it): the fuzz harness calls this directly. */
+int dvdinfo_print(dvd_reader_t *dvd)
 {
-    if (argc < 2) { fprintf(stderr, "usage: dvdinfo <device|iso|dir>\n"); return 2; }
-
-    dvd_reader_t *dvd = DVDOpen(arg_utf8(argc, argv, 1));
-    if (!dvd) { printf("{\"error\":\"Could not open disc\"}\n"); return 1; }
+    int status = 1;
+    ifo_handle_t **vts = NULL;
+    int nvts = 0;
 
     ifo_handle_t *vmg = ifoOpen(dvd, 0);
     if (!vmg || !vmg->tt_srpt || !vmg->tt_srpt->title || !vmg->vmgi_mat) {
         printf("{\"error\":\"Not a DVD-Video disc (no VIDEO_TS.IFO)\"}\n");
-        DVDClose(dvd);
-        return 1;
+        goto done;
     }
 
     char volid[33] = "";
@@ -92,9 +94,9 @@ int main(int argc, char **argv)
         DVDISOVolumeInfo(dvd, volid, sizeof volid, setid, sizeof setid);
     volid[sizeof volid - 1] = 0;
 
-    int nvts = vmg->vmgi_mat->vmg_nr_of_title_sets;
-    ifo_handle_t **vts = calloc(nvts + 1, sizeof *vts);
-    if (!vts) { printf("{\"error\":\"Out of memory\"}\n"); return 1; }
+    nvts = vmg->vmgi_mat->vmg_nr_of_title_sets;
+    vts = calloc(nvts + 1, sizeof *vts);
+    if (!vts) { printf("{\"error\":\"Out of memory\"}\n"); goto done; }
 
     printf("{\"volume\":"); json_str(volid);
     printf(",\"titles\":[");
@@ -162,10 +164,25 @@ int main(int argc, char **argv)
         printf("]}");
     }
     printf("]}\n");
+    status = 0;
 
-    for (int i = 1; i <= nvts; i++) if (vts[i]) ifoClose(vts[i]);
+done: /* single cleanup path: every exit frees the title sets, the array and the VMG */
+    for (int i = 1; vts && i <= nvts; i++) if (vts[i]) ifoClose(vts[i]);
     free(vts);
-    ifoClose(vmg);
-    DVDClose(dvd);
-    return 0;
+    if (vmg) ifoClose(vmg);
+    return status;
 }
+
+#ifndef SPINARR_FUZZ
+int main(int argc, char **argv)
+{
+    if (argc < 2) { fprintf(stderr, "usage: dvdinfo <device|iso|dir>\n"); return 2; }
+
+    dvd_reader_t *dvd = DVDOpen(arg_utf8(argc, argv, 1));
+    if (!dvd) { printf("{\"error\":\"Could not open disc\"}\n"); return 1; }
+
+    int status = dvdinfo_print(dvd);
+    DVDClose(dvd);
+    return status;
+}
+#endif

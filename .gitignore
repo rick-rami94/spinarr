@@ -4,6 +4,9 @@ node_modules/
 # engine build outputs and downloaded sources
 engine/bin/
 engine/deps/
+engine/bin-asan/
+build-out*/
+fuzz/out/
 
 # generated test media and reports
 test/fixtures/out/
@@ -13,5 +16,6 @@ test/security/findings/
 test/tools/tsMuxer-*
 test/security/work-bd/
 test/security/findings-bd/
+test/security/fuzz-work/
 coverage/
 dist/
