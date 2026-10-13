@@ -11,6 +11,13 @@ const ENGINE = app.isPackaged
   ? path.join(process.resourcesPath, 'engine')
   : process.env.SPINARR_ENGINE_DIR || path.join(__dirname, '..', 'engine', 'bin');
 const bin = (name) => path.join(ENGINE, platform.exe(name));
+// Bundled license files (REL-04). Fixed paths only: no environment override, so nothing outside
+// the app can choose what the About section reads or opens.
+const RESOURCES = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
+const NOTICES = path.join(RESOURCES, 'THIRD_PARTY_NOTICES.txt');
+const CHROMIUM_LICENSES = app.isPackaged
+  ? path.join(RESOURCES, 'licenses', 'LICENSES.chromium.html')
+  : path.join(__dirname, '..', 'node_modules', 'electron', 'dist', 'LICENSES.chromium.html');
 // The UI is served from its own origin (app://spinarr/) instead of file://, so CSP 'self'
 // means "Spinarr's renderer files" rather than "any file on disk" (e.g. on a hostile disc).
 const RENDERER_DIR = path.join(__dirname, 'renderer');
@@ -162,6 +169,7 @@ const listDrives = () => platform.listDrives();
 let stopWatching;
 function watchVolumes() {
   stopWatching = platform.watch(async () => {
+    revalidateScans();
     abandonVanishedSource();
     send('drives-changed', await listDrives());
   });
@@ -187,7 +195,17 @@ async function readInfo(tool, source) {
   catch (e) { throw new Error(e instanceof SyntaxError ? 'Could not read the disc structure' : e.message); }
 }
 
+// SAFE-01 / CR-01: consent is bound to the medium as it was scanned, not to its path.
+function identityOf(src) {
+  try { return lib.mediumIdentity(src); } catch { return null; }
+}
+
 async function scan(source) {
+  let before;
+  try { before = lib.mediumIdentity(source); } catch (e) {
+    const why = e && e.message;
+    throw new Error(why === lib.IDENTITY_TOO_MANY || why === lib.IDENTITY_UNREADABLE ? why : 'Source not found');
+  }
   const kind = lib.sourceKind(source);
   let json;
   if (kind === 'bluray') json = await readInfo('bdinfo', source);
@@ -200,20 +218,53 @@ async function scan(source) {
     }
   }
   if (json.error) throw new Error(String(json.error));
+  let after = null;
+  try { after = lib.mediumIdentity(source); } catch {}
+  if (after !== before) throw new Error('The disc changed while it was being scanned. Scan it again.');
   const result = { ...lib.analyzeTitles(json, source), type: json.type === 'bluray' ? 'bluray' : 'dvd', encryption: json.encryption || null };
   result.blocked = result.type === 'bluray' ? blurayBlocker(result.encryption) : null;
   // The UI offers "Choose KEYDB.cfg…" when the user's own key file is what's missing.
   const enc = result.encryption;
   result.keydbFixable = !!(result.blocked && enc && enc.aacs && !enc.aacsHandled && enc.libaacs && ![-1, -6].includes(enc.aacsError));
   if (scans.size > 50) scans.delete(scans.keys().next().value);
-  scans.set(source, result);
+  scans.set(source, { ...result, identity: before }); // the identity never goes to the renderer
   return result;
+}
+
+// The scans entry for src if the medium there is still the one that was scanned; otherwise
+// the entry is dropped (swapped, overwritten, ejected) and null is returned.
+function scannedSame(src) {
+  const entry = scans.get(src);
+  if (!entry) return null;
+  if (identityOf(src) === entry.identity) return entry;
+  scans.delete(src);
+  return null;
+}
+
+// SAFE-01 / CR-01: consent covers this medium as scanned; checked at every spawn point
+// (probe, enqueue, pump, prepareBluray, start).
+function assertScanGate(src) {
+  if (sandboxTrusted()) return;
+  if (!scans.has(src)) throw new Error(lib.RESCAN_NOT_SCANNED);
+  let now = null;
+  let failure = null;
+  try { now = lib.mediumIdentity(src); } catch (e) { failure = e; }
+  if (now !== scans.get(src).identity) {
+    scans.delete(src);
+    throw new Error(lib.identityRefusal(failure)); // always starts with "Scan the disc again"
+  }
+}
+
+// On any volume change, forget scans of media that vanished or changed. Runs whether or not
+// the sandbox is trusted: a stale scan of a swapped disc is wrong either way.
+function revalidateScans() {
+  for (const key of [...scans.keys()]) scannedSame(key);
 }
 
 function scannedTitle(source, title) {
   const disc = scans.get(source);
   const t = disc?.titles.find((x) => x.title === title);
-  if (!disc || !t) throw new Error('Scan the disc again before ripping');
+  if (!disc || !t) throw new Error(lib.RESCAN_NOT_SCANNED);
   return { disc, t };
 }
 
@@ -270,8 +321,8 @@ function enqueue(jobs) {
   if (!Array.isArray(jobs) || jobs.length > 99) throw new Error('Invalid job list');
   const clean = jobs.map((j) => {
     const job = lib.validateJob(j);
-    // SAFE-01: never parse an unscanned disc unsandboxed (SAFE-11 makes this universal later).
-    if (!sandboxTrusted() && !scans.has(job.source)) throw new Error('Scan the disc again before ripping');
+    // SAFE-01: never parse an unscanned or changed disc unsandboxed (SAFE-11 makes this universal later).
+    assertScanGate(job.source);
     const disc = scans.get(job.source);
     if (disc?.type === 'bluray') {
       const blocked = blurayBlocker(disc.encryption);
@@ -311,6 +362,8 @@ function pump() {
   active = job;
   job.state = 'ripping';
   job.startedAt = Date.now();
+  // WR-08: the disc may have been swapped while the job sat in the queue.
+  try { assertScanGate(job.source); } catch (e) { return finish(job, 'failed', e.message); }
 
   let final;
   try {
@@ -333,6 +386,7 @@ function pump() {
 }
 
 async function prepareBluray(job, part) {
+  assertScanGate(job.source);
   const { j } = await probeStreams(job.source, job.title);
   const all = (j.streams || []).filter((s) => ['video', 'audio', 'subtitle'].includes(s.codec_type));
   const chosen = job.streams ? all.filter((s) => job.streams.includes(s.index)) : all;
@@ -348,6 +402,11 @@ function start(job, args, part, final) {
   if (job.state !== 'ripping') {
     if (job.chaptersFile) fs.rmSync(job.chaptersFile, { force: true });
     return finish(job, 'cancelled');
+  }
+  // Immediately before spawn: covers the async gap after prepareBluray (WR-08).
+  try { assertScanGate(job.source); } catch (e) {
+    if (job.chaptersFile) fs.rmSync(job.chaptersFile, { force: true });
+    return finish(job, 'failed', e.message);
   }
   let proc;
   try {
@@ -446,7 +505,7 @@ handle('scan', (source, opts) => {
 });
 handle('probe', (source, title) => {
   const src = lib.validateSource(source);
-  if (!sandboxTrusted() && !scans.has(src)) throw new Error('Scan the disc first');
+  assertScanGate(src);
   return probeTitle(src, lib.validateTitle(title));
 });
 handle('rip', (jobs) => enqueue(jobs));
@@ -465,6 +524,17 @@ handle('eject', async (p) => {
 // What Settings shows. sandboxTrusted is the same signal the scan gate uses.
 const systemInfo = () => ({ ...platform.info(), sandbox: sandboxTrusted() ? platform.sandboxKind : 'none', sandboxTrusted: sandboxTrusted() });
 handle('system', () => systemInfo());
+// What Settings > About shows (REL-04, D-13). Main builds every target: the source link comes from
+// our own version and the license paths are fixed, so the renderer passes nothing and cannot steer
+// either the URL that opens in the browser or the file that opens on disk.
+const sourceReleaseUrl = () => `https://github.com/rick-rami94/spinarr/releases/tag/v${app.getVersion()}`;
+handle('about', () => ({ version: app.getVersion(), license: 'GPL-3.0-or-later', sourceUrl: sourceReleaseUrl() }));
+handle('notices', () => {
+  if (!fs.existsSync(NOTICES)) throw new Error('Third-party notices are missing from this build');
+  return fs.readFileSync(NOTICES, 'utf8');
+});
+handle('open-source-release', () => shell.openExternal(sourceReleaseUrl()));
+handle('open-chromium-licenses', () => shell.openPath(CHROMIUM_LICENSES));
 // Windows: let the user hand us libdvdcss-2.dll (we never download or ship it).
 handle('install-dvdcss', async () => {
   if (!platform.isWin) throw new Error('Only needed on Windows');

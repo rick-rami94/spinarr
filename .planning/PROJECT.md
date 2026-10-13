@@ -40,14 +40,14 @@ This milestone takes Spinarr from a credible prototype (v0.1.3) to a **v1.0 publ
 **Trust and distribution**
 - [ ] Releases are signed and notarized on macOS (Developer ID) and signed on Windows (Authenticode or Azure Trusted Signing), installing with no Gatekeeper or SmartScreen bypass (SF-4)
 - [ ] Release artifacts carry signed checksums and build provenance attestations (SF-4)
-- [ ] Private vulnerability reporting works, with a fallback contact; Dependabot alerts and updates are on (SF-3)
-- [ ] CI is supply-chain hardened: actions pinned by SHA, toolchain pinned, `main` branch-protected, audit covers Electron (SF-5)
+- [x] Private vulnerability reporting works, with a fallback contact; Dependabot alerts and updates are on (SF-3) — Validated in Phase 1
+- [x] CI is supply-chain hardened: actions pinned by SHA, toolchain pinned, `main` branch-protected, audit covers Electron (SF-5) — Validated in Phase 1
 - [ ] Builds ship third-party license notices and a corresponding-source pointer (R-13)
 - [ ] There's a changelog and a deliberate release process (prereleases until 1.0)
 
 **Engine security**
 - [ ] The Windows engine runs in a real sandbox (AppContainer or restricted token + job object): no network, no file access beyond source, output and caches (SF-1)
-- [ ] Discs never auto-scan while the engine is unsandboxed, on any OS (SF-1)
+- [x] Discs never auto-scan while the engine is unsandboxed, on any OS (SF-1) — Validated in Phase 1; consent bound to the scanned medium; write-access residual disclosed in SECURITY.md and carried by SAFE-05
 - [ ] The macOS engine profile is deny-by-default, with tests that assert denial of `/tmp` reads, pasteboard/LaunchServices Mach lookups and `$HOME` stat (SF-2)
 - [ ] The Linux bubblewrap sandbox has a seccomp filter and a startup functional probe; it works on Ubuntu 24.04+ (SF-7)
 - [ ] The app's macOS entitlements are minimal; library-validation is relaxed only for the engine (SF-6)
@@ -74,12 +74,12 @@ This milestone takes Spinarr from a credible prototype (v0.1.3) to a **v1.0 publ
 - [ ] Batch mode: insert disc → rip main feature (or episodes) → eject, for working through a shelf
 
 **Cross-platform 1.0**
-- [ ] Windows and Linux CI run the full suite: unit, security corpus, engine and e2e
+- [x] Windows and Linux CI run the full suite: unit, security corpus, engine and e2e — Validated in Phase 1
 - [ ] Windows and Linux are validated against a real drive through a VM with USB passthrough from the Intel Mac, plus a public beta call for testers before 1.0
 - [ ] Eject and disc-removal work and are tested on all three OSes
 
 **Quality and docs**
-- [ ] Code coverage is measured in CI with a baseline
+- [x] Code coverage is measured in CI with a baseline — Validated in Phase 1 (c8 floor 85/91/88)
 - [ ] Docs match reality: all audit discrepancies DD-1..DD-11 resolved
 - [ ] The hardware test matrix (M-1..M-7 + Blu-ray + AACS + multi-angle/TV + scratched disc) is run on the release candidate and recorded
 
@@ -146,7 +146,7 @@ This milestone takes Spinarr from a credible prototype (v0.1.3) to a **v1.0 publ
 | Windows encrypted physical rips: weaker restricted-token sandbox, disclosed, if the AppContainer spike fails; sector broker after 1.0 | Research: AppContainer likely can't open \\.\X: (LOW confidence; spike decides) | — Pending |
 | AACS 1.0 = per-disc keys (VUK) only; no drive handshake | Keeps the sandbox tight; avoids permanent drive-certificate revocation on the BU40N | — Pending |
 | TMDB: user brings own token (safeStorage), off by default | TMDB staff advise against embedded keys in OSS apps | — Pending |
-| Remove direct libdvdcss DLL link from README | Legal hygiene; no fetching or linking to decryption components | — Pending |
+| Remove direct libdvdcss DLL link from README | Legal hygiene; no fetching or linking to decryption components | ✓ Done (Phase 1) |
 
 ## Evolution
 
@@ -166,4 +166,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-10 after initialization*
+*Last updated: 2026-10-12 after Phase 1 (Safety Gate & CI Baseline)*

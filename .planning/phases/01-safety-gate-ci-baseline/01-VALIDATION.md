@@ -44,6 +44,9 @@ Filled in from PLAN.md task IDs during execution. Requirement → test map from 
 | SAFE-01 | `spinarr.scan(` only in `requestScan`/`confirmScan` | unit (static) | `node --test test/unit/gate-static.test.js` | ❌ W0 | ⬜ pending |
 | SAFE-01 | insert / drop / picker-ISO / picker-folder: no scan before click | e2e | `node test/e2e/run.js gate_insert gate_drop gate_pick_iso gate_pick_folder` | ❌ W0 | ⬜ pending |
 | SAFE-01 | main refuses unflagged scan; probe/rip of unscanned source refused when untrusted | e2e | `node test/e2e/run.js sec_gate_ipc` | ❌ W0 | ⬜ pending |
+| SAFE-01 | consent bound to medium identity; swapped/changed media refused by probe/rip; queued job re-gated | unit + e2e | `node --test test/unit/lib.test.js`; `node test/e2e/run.js sec_gate_swap sec_gate_ipc` | ✅ | ⬜ pending |
+| SAFE-01 | identity covers every file the parsers open (DVD root/video_ts, BD BACKUP/AACS/CERTIFICATE); cap refuses; in-place edit refused; OS metadata ignored | unit + e2e | `node --test test/unit/lib.test.js`; `node test/e2e/run.js sec_gate_inplace` | ✅ | ⬜ pending |
+| SAFE-01 | unlistable / unreadable walked directory fails closed; residual disclosed (SF-1) | unit + e2e | `node --test test/unit/lib.test.js`; `node test/e2e/run.js sec_gate_unlistable` (macOS/Linux) | ✅ | ⬜ pending |
 | REL-05 | private reporting, alerts, security fixes on; SECURITY.md fallback contact | API + grep | `gh api repos/rick-rami94/spinarr/private-vulnerability-reporting --jq .enabled` | ❌ | ⬜ pending |
 | REL-06 | no unpinned actions, no cache poisoning | CI lint | `pipx run zizmor==1.30.1 --format plain .github/workflows` | ❌ | ⬜ pending |
 | REL-06 | Electron advisory check + high audit | CI | audit job script | ❌ | ⬜ pending |

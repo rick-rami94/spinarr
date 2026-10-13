@@ -6,6 +6,7 @@
   "main": "app/main.js",
   "license": "GPL-3.0-or-later",
   "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
     "start": "electron .",
     "engine": "sh engine/build.sh",
     "fixtures": "sh test/fixtures/make.sh && sh test/fixtures/make-bluray.sh",
@@ -60,6 +61,18 @@
           "bdinfo",
           "*.exe"
         ]
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.txt",
+        "to": "THIRD_PARTY_NOTICES.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSE",
+        "to": "licenses/LICENSE.electron.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "licenses/LICENSES.chromium.html"
       }
     ],
     "asar": true,
@@ -81,10 +94,12 @@
       "hardenedRuntime": true,
       "minimumSystemVersion": "12.0",
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "sign": "build/sign-mac.js"
     },
     "dmg": {
-      "title": "Spinarr ${version}"
+      "title": "Spinarr ${version}",
+      "sign": true
     },
     "linux": {
       "target": [
@@ -108,7 +123,13 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "signtoolOptions": {
+        "sign": "build/sign-win.js",
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      }
     },
     "nsis": {
       "oneClick": true,

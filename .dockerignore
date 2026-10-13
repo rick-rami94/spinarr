@@ -1,0 +1,17 @@
+# Build context for .clusterfuzzlite/Dockerfile. Keep local build outputs and extracted
+# sources out of the image: build.sh re-verifies and re-extracts the pinned tarballs.
+.git
+node_modules
+dist
+coverage
+build-out*
+fuzz/out
+engine/bin
+engine/bin-asan
+engine/deps/*
+!engine/deps/*.tar.xz
+test/fixtures/out
+test/reports
+test/security/work*
+test/security/findings*
+test/security/fuzz-work

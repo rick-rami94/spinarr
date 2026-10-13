@@ -1,0 +1,176 @@
+name: Fuzz (PR)
+
+# Code-change fuzzing for pull requests that touch the parsers or the fuzz setup (SAFE-10, D-11):
+# 300 s per target x 2 targets = 10 minutes. Not a required check, so the paths filter is fine.
+#
+# Privacy model (D-09): crash inputs and stack traces never leave the runner except to the
+# private rick-rami94/spinarr-fuzz-corpus repo and private draft security advisories. This log
+# is public. ALL fuzzer output goes to $RUNNER_TEMP/fuzz.log, which is never printed or uploaded;
+# scripts/fuzz-report.js prints only an advisory link. Never add artifact uploads, the CFLite
+# run-fuzzers action, SARIF output or upload, or the PR-target trigger to this workflow
+# (test/unit/fuzz-workflows.test.js enforces this).
+#
+# Fork PRs get no credentials (GitHub withholds secrets, and every credentialed step is gated on
+# a same-repo head). They fuzz from the seed corpus only and, on a crash, print one fixed line.
+#
+# Credentials (plan 02-04 decision: GitHub App): vars.FUZZ_APP_ID (App ID or Client ID) and
+# secrets.FUZZ_APP_PRIVATE_KEY in environment `fuzz`. A token is minted right before each use,
+# scoped to the one repository that step needs, and revoked when the job ends.
+#
+# Supply chain: every action is pinned to a commit SHA. Documented exception to D-16: the CFLite
+# build_fuzzers action runs the floating image gcr.io/oss-fuzz-base/clusterfuzzlite-build-fuzzers:v1
+# (set inside the pinned action.yml). It only orchestrates the build; the compiler image comes from
+# .clusterfuzzlite/Dockerfile, which pins base-builder by digest. Fuzzers run only through
+# scripts/fuzz-run.sh, which pins the run-fuzzers image by digest and runs it with --network none.
+on:
+  pull_request:
+    paths:
+      - 'engine/**'
+      - 'fuzz/**'
+      - '.clusterfuzzlite/**'
+      - 'scripts/fuzz-*'
+      - '.github/workflows/fuzz-*.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: fuzz
+    env:
+      SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Builds the address-sanitizer fuzzers into $GITHUB_WORKSPACE/build-out. Uploads nothing.
+      - name: Build fuzzers (ASan)
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: c
+          sanitizer: address
+          github-token: ${{ github.token }}
+          upload-build: false
+          # Keep both targets; never prune them based on coverage downloaded from artifacts.
+          keep-unaffected-fuzz-targets: true
+
+      - name: Mint corpus token (read the private corpus)
+        id: corpus-token
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.FUZZ_APP_ID }}
+          private-key: ${{ secrets.FUZZ_APP_PRIVATE_KEY }}
+          owner: rick-rami94
+          repositories: spinarr-fuzz-corpus
+          permission-contents: write
+
+      # GitHub masks the raw token but not its base64 form, so mask that before using it.
+      - name: Clone the private corpus
+        id: clone
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          CORPUS_TOKEN: ${{ steps.corpus-token.outputs.token }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$CORPUS_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            clone --quiet https://github.com/rick-rami94/spinarr-fuzz-corpus.git "$RUNNER_TEMP/corpus-repo"
+
+      # High-entropy ASLR (mmap_rnd_bits=32) makes ASan die with DEADLYSIGNAL on GitHub's
+      # Ubuntu runners: actions/runner-images#9515.
+      - name: Allow ASan on GitHub runners
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      # Exit 0 = no crash, 3 = crash, anything else = infrastructure failure. The status is kept
+      # in a step output so crash handling runs before the job fails.
+      - name: Fuzz (code-change, 300 s per target)
+        id: fuzz
+        run: |
+          if [ "$SAME_REPO" = true ]; then corpus="$RUNNER_TEMP/corpus-repo/corpus"; else corpus="$RUNNER_TEMP/seed-only-corpus"; fi
+          status=0
+          sh scripts/fuzz-run.sh --mode code-change --seconds 300 --build-out build-out \
+            --corpus "$corpus" --crashes "$RUNNER_TEMP/crashes" --log "$RUNNER_TEMP/fuzz.log" || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Mint advisory token (draft advisories on spinarr)
+        id: advisory-token
+        if: steps.fuzz.outputs.status == '3' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.FUZZ_APP_ID }}
+          private-key: ${{ secrets.FUZZ_APP_PRIVATE_KEY }}
+          owner: rick-rami94
+          repositories: spinarr
+          # Not in the action's generated input list (the runner warns), but the action reads
+          # every permission-* input, so the token gets this one permission and nothing else.
+          permission-repository-advisories: write
+
+      # Exit 1 means "crashes reported" and is expected here; 2 is an API or usage failure.
+      - name: Report the crash privately
+        if: steps.fuzz.outputs.status == '3' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          FUZZ_ADVISORY_TOKEN: ${{ steps.advisory-token.outputs.token }}
+        run: |
+          rc=0
+          node scripts/fuzz-report.js --crashes "$RUNNER_TEMP/crashes" --corpus-repo "$RUNNER_TEMP/corpus-repo" --mode pr || rc=$?
+          [ "$rc" -le 1 ]
+
+      - name: Report the crash (fork PR, no credentials)
+        if: steps.fuzz.outputs.status == '3' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          rc=0
+          node scripts/fuzz-report.js --crashes "$RUNNER_TEMP/crashes" --mode fork || rc=$?
+          [ "$rc" -le 1 ]
+
+      - name: Mint corpus token (store the reproducer)
+        id: push-token
+        if: "!cancelled() && steps.fuzz.outputs.status == '3' && steps.clone.outcome == 'success' && github.event.pull_request.head.repo.full_name == github.repository"
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.FUZZ_APP_ID }}
+          private-key: ${{ secrets.FUZZ_APP_PRIVATE_KEY }}
+          owner: rick-rami94
+          repositories: spinarr-fuzz-corpus
+          permission-contents: write
+
+      # Only crashes/ is pushed from a PR: the PR's grown corpus is not trusted into the
+      # shared corpus. Retries with a rebase because the nightly job may push at the same time.
+      - name: Push the new crashes to the private corpus
+        if: "!cancelled() && steps.fuzz.outputs.status == '3' && steps.clone.outcome == 'success' && github.event.pull_request.head.repo.full_name == github.repository"
+        env:
+          CORPUS_TOKEN: ${{ steps.push-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$CORPUS_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          cd "$RUNNER_TEMP/corpus-repo"
+          git add crashes
+          if git diff --cached --quiet; then echo "no new crash signatures"; exit 0; fi
+          git -c user.name=spinarr-fuzz-bot -c user.email=noreply@github.com \
+            commit --quiet -m "crashes: from PR #$PR_NUMBER fuzzing"
+          branch=$(git symbolic-ref --short HEAD)
+          for attempt in 1 2 3; do
+            if git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push --quiet origin "HEAD:$branch"; then exit 0; fi
+            git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" pull --quiet --rebase origin "$branch"
+          done
+          echo "push to the private corpus failed" >&2
+          exit 1
+
+      - name: Result
+        if: always()
+        env:
+          STATUS: ${{ steps.fuzz.outputs.status }}
+        run: |
+          case "$STATUS" in
+            0) echo "no crashes" ;;
+            3) echo "fuzzing found a new crash; see the private advisory linked above" >&2; exit 1 ;;
+            *) echo "fuzz infrastructure failure" >&2; exit 1 ;;
+          esac

@@ -1,0 +1,32 @@
+Subject: [PATCH] libdvdread: fix two IFO read error paths
+
+Applies on top of libdvdread-0001-harden-ifo-parsing.patch.
+
+* Free only initialised PGCIT entries on PGCI_UT read failure. When the
+  PGCIT read fails after its header has been read, nr_of_pgci_srp is set
+  but pgci_srp is NULL, and the cleanup walked the missing array. Skip the
+  per-entry loop when there is no array to walk.
+* Free the VTS_ATRT attribute table on attribute read failure. The error
+  path freed the offsets and the table header but leaked vts_atrt->vts.
+---
+--- a/src/ifo_read.c
++++ b/src/ifo_read.c
+@@ -3263,7 +3263,9 @@
+ static void ifoFree_PGCIT_internal(pgcit_t *pgcit) {
+   if(pgcit && (--pgcit->ref_count <= 0)) {
+     int i;
+-    for(i = 0; i < pgcit->nr_of_pgci_srp; i++)
++    /* pgci_srp is NULL when ifoRead_PGCIT_internal failed after reading the
++     * header, even though nr_of_pgci_srp is already set. */
++    for(i = 0; pgcit->pgci_srp && i < pgcit->nr_of_pgci_srp; i++)
+     {
+       ifoFree_PGC(pgcit->pgci_srp[i].pgc);
+       pgcit->pgci_srp[i].pgc = NULL;
+@@ -3572,6 +3574,7 @@
+     unsigned int offset = data[i];
+     if(!ifoRead_VTS_ATTRIBUTES(ifofile, &(vts_atrt->vts[i]),
+                                (sector * DVD_BLOCK_LEN) + offset)) {
++      free(vts_atrt->vts);
+       free(data);
+       free(vts_atrt);
+       ifofile->vts_atrt = NULL;

@@ -14,6 +14,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 - [ ] **SAFE-03**: On Linux, Spinarr ships its own bubblewrap with an AppArmor profile scoped to that binary. Engines run with a seccomp deny-list filter. A startup probe checks the sandbox actually works, and Settings shows the real status. [SF-7]
 - [ ] **SAFE-04**: On Ubuntu 24.04+ the deb's sandbox works out of the box. The AppImage reports reduced isolation and disables auto-scan when bwrap can't run. The Electron renderer sandbox is never silently disabled.
 - [ ] **SAFE-05**: On Windows, scans and disc-image or unencrypted rips run in an AppContainer with no capabilities, inside a job object. Access is granted per job, and the engine has no network access. [SF-1]
+  - Must also close the SAFE-01 residual: the unsandboxed engine re-opens disc files lazily after the spawn-time same-disc check, a crafted playlist clip_id can name files the fingerprint skips, and a same-size rewrite with restored timestamps passes the check (01-REVIEW.md WR-10, WR-08, T-01-44; disclosed in SECURITY.md).
 - [ ] **SAFE-06**: On Windows, an early spike decides how encrypted physical discs are handled.
   - If the AppContainer can open the drive device, they use it.
   - Otherwise they use a weaker sandbox: restricted token, low integrity, job object, no network. Settings and the docs say so plainly.
@@ -79,7 +80,7 @@ Finding IDs in brackets (SF-, R-, DD-) refer to the local engineering audit. Res
 - [ ] **REL-02**: Windows builds and engine executables are signed with Azure Artifact Signing (OIDC, pinned signing module). [SF-4]
 - [ ] **REL-03**: Every release has build-provenance attestations, a keyless cosign-signed SHA256SUMS and an SBOM generated from the engine pins. Immutable releases are on. [SF-4]
 - [ ] **REL-04**: Every release attaches a GPL corresponding-source bundle (app source plus upstream engine tarballs plus patches), and the app ships third-party license notices. [R-13]
-- [ ] **REL-05**: Private vulnerability reporting is on, SECURITY.md has a fallback contact, and Dependabot alerts and updates are on. [SF-3]
+- [x] **REL-05**: Private vulnerability reporting is on, SECURITY.md has a fallback contact, and Dependabot alerts and updates are on. [SF-3]
 - [x] **REL-06**: All GitHub Actions are pinned by commit SHA, toolchains are pinned, `main` is branch-protected with required checks, and the dependency audit covers Electron. [SF-5]
 - [ ] **REL-07**: Releases before 1.0 are marked prerelease. A CHANGELOG is kept, and the release process is documented and followed.
 - [x] **REL-08**: The README no longer links directly to a libdvdcss DLL download. Setup guidance stays neutral and never ships or fetches decryption components.
@@ -136,7 +137,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SAFE-01 | Phase 1 | Complete |
+| SAFE-01 | Phase 1 | Complete (2026-10-12; residual scoped to SF-1 / SAFE-05) |
 | SAFE-02 | Phase 4 | Pending |
 | SAFE-03 | Phase 4 | Pending |
 | SAFE-04 | Phase 4 | Pending |
@@ -184,7 +185,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-02 | Phase 2 | Pending |
 | REL-03 | Phase 2 | Pending |
 | REL-04 | Phase 2 | Pending |
-| REL-05 | Phase 1 | Pending |
+| REL-05 | Phase 1 | Complete |
 | REL-06 | Phase 1 | Complete |
 | REL-07 | Phase 8 | Pending |
 | REL-08 | Phase 1 | Complete |

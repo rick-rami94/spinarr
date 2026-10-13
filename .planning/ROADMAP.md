@@ -13,7 +13,7 @@ Spinarr v0.1.3 already proves the hard part: bit-exact remuxing with a patched, 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Safety Gate & CI Baseline** - No unsandboxed auto-scan anywhere, plus quick wins: vuln reporting, SHA-pinned CI, neutral README, hermetic e2e, coverage baseline, full Windows CI
+- [x] **Phase 1: Safety Gate & CI Baseline** - No unsandboxed auto-scan anywhere, plus quick wins: vuln reporting, SHA-pinned CI, neutral README, hermetic e2e, coverage baseline, full Windows CI (completed 2026-10-12)
 - [ ] **Phase 2: Trust & Distribution** - Signed and notarized installers, provenance attestations, signed checksums, SBOM, GPL source bundle, fuzzing in CI (parallel-capable track)
 - [ ] **Phase 3: Rip Foundations** - Disc-ID scan catalog, main-process-only scan truth, staged atomic durable output, and a journaled queue state machine
 - [ ] **Phase 4: Sandbox Everywhere** - Windows AppContainer spike first, then deny-default engine sandboxes on macOS, Linux and Windows with honest status reporting
@@ -37,7 +37,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The README contains no direct link to a libdvdcss DLL; setup guidance is neutral and nothing in the repo ships or fetches decryption components.
   5. CI on Windows runs the full suite (unit, security corpus, engine lossless oracle, e2e), e2e never reads the real user's AACS/dvdcss folders and covers `accurateChapters=false`, and c8 coverage is reported with a recorded baseline that fails on regression.
 
-**Plans**: 10 plans
+**Plans**: 15 plans (10 + 5 gap closure)
 Plans:
 **Wave 1**
 
@@ -65,7 +65,27 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 01-10-PLAN.md — Branch protection on main (checkpoint, last step) + optional merge and v0.1.4 release (checkpoint)
+- [x] 01-10-PLAN.md — Branch protection on main (checkpoint, last step) + optional merge and v0.1.4 release (checkpoint)
+
+**Gap closure — Wave 1** *(CR-01 / WR-08, SAFE-01)*
+
+- [x] 01-11-PLAN.md — Bind scan consent to medium identity (lib.mediumIdentity); gate probe/enqueue/pump/start; revalidate scans on volume change
+
+**Gap closure — Wave 2** *(blocked on 01-11)*
+
+- [x] 01-12-PLAN.md — sec_gate_swap e2e (eject/swap/overwrite/queued), tightened sec_gate_ipc, truthful SECURITY.md, SAFE-01 left pending re-verification
+
+**Gap closure round 2 — Wave 1** *(CR-01 identity coverage, SAFE-01)*
+
+- [x] 01-13-PLAN.md — mediumIdentity fingerprints every file the parsers open (DVD root/video_ts/AUDIO_TS/DVD_RTAV; BD BDMV/**, AACS/**, CERTIFICATE/**, BDSVM/**), ignores only unopenable OS metadata, fails closed at a 20000-entry cap; unit tests
+
+**Gap closure round 2 — Wave 2** *(blocked on 01-13)*
+
+- [x] 01-14-PLAN.md — sec_gate_inplace e2e (in-place edits, same root inode; WR-10), SECURITY.md coverage/limit wording (IN-05), SAFE-01 left pending re-verification
+
+**Gap closure round 3 — Wave 1** *(CR-01 traverse-only bypass, SAFE-01)*
+
+- [x] 01-15-PLAN.md — mediumIdentity fails closed on unreadable directories (only ENOENT/ENOTDIR = absent), refusals name the real reason, chmod unit tests + sec_gate_unlistable e2e, SECURITY.md residual scoped to SF-1, SAFE-05/Phase 4 traceability note
 
 **UI hint**: yes
 
@@ -82,7 +102,41 @@ Plans:
   4. Every release attaches a GPL corresponding-source bundle (app source, upstream engine tarballs, patches), and the installed app shows third-party license notices.
   5. CI runs libFuzzer harnesses for libdvdread IFO and libbluray MPLS/CLPI via ClusterFuzzLite, and replays the malicious-disc corpus against ASan builds on every change.
 
-**Plans**: TBD
+**Plans**: 14 plans in 6 waves
+
+Plans:
+**Wave 1**
+
+- [x] 02-01-PLAN.md — macOS/Windows signing hooks, split entitlements, verify scripts (REL-01, REL-02)
+- [x] 02-02-PLAN.md — pin parser, CycloneDX SBOM, THIRD_PARTY_NOTICES, build.sh fetch mode (REL-03, REL-04)
+- [x] 02-03-PLAN.md — account runbook, verification guide, README; `release` env + Immutable Releases checkpoint
+- [ ] 02-04-PLAN.md — private fuzz corpus repo and scoped credential (checkpoints)
+- [x] 02-05-PLAN.md — libFuzzer harnesses (DVDOpenFiles / bd_open_files) and scanner refactor (SAFE-10)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 02-06-PLAN.md — Settings > About: GPL notice, source link, third-party licenses (REL-04)
+- [x] 02-07-PLAN.md — ASan corpus replay job, required check (SAFE-10)
+- [x] 02-08-PLAN.md — ClusterFuzzLite build, unpatched sanity check, standalone-run spike, fuzz-run.sh (SAFE-10)
+- [x] 02-09-PLAN.md — reproducible GPL source bundle + BUILDING.md (REL-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 02-10-PLAN.md — PR/nightly/weekly fuzz workflows with private crash reporting (SAFE-10)
+- [x] 02-11-PLAN.md — release.yml: env-gated signing, dmg notarization, SBOM, source, cosign, attestations, draft (REL-01..04)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-12-PLAN.md — unsigned v0.2.0-rc.1 end-to-end rehearsal (checkpoint)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 02-13-PLAN.md — accounts, merge to main, signed v0.2.0 draft verification (checkpoints)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 02-14-PLAN.md — real-download check, publish, D-08 relabel of v0.1.x (checkpoints)
+
 **Research flag**: light (signing/notarization/attestation mechanics are HIGH confidence)
 
 ### Phase 3: Rip Foundations
@@ -106,6 +160,7 @@ Plans:
 **Goal**: Opening a disc cannot compromise the computer on any OS: every engine tool runs deny-by-default with no network, each OS's sandbox is functionally probed at startup, and the app tells the user exactly how much isolation is in force.
 **Depends on**: Phase 3 (capability seam and per-job staging folder)
 **Requirements**: SAFE-02, SAFE-03, SAFE-04, SAFE-05, SAFE-06, SAFE-09, SAFE-13, PLAT-02
+**Carries**: the SAFE-01 residual from Phase 1 (lazy re-reads after the spawn-time check, crafted clip_id names, same-size rewrites with restored timestamps). The Windows sandbox (SAFE-05, SF-1) and the Linux no-bwrap path must remove it; see SECURITY.md.
 **Success Criteria** (what must be TRUE):
 
   1. The Windows device-access spike runs first (NtObjectManager against the real drives via VM USB passthrough) and its outcome is recorded as a decision: encrypted physical rips use the AppContainer if it can open the drive, otherwise a disclosed restricted-token + low-integrity + job-object sandbox with no network.
@@ -190,8 +245,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safety Gate & CI Baseline | 9/10 | In Progress|  |
-| 2. Trust & Distribution | 0/TBD | Not started | - |
+| 1. Safety Gate & CI Baseline | 15/15 | Complete | 2026-10-12 |
+| 2. Trust & Distribution | 10/14 | In Progress|  |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
 | 5. Verified Rips | 0/TBD | Not started | - |

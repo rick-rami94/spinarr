@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('spinarr', {
   system: invoke('system'),
   installDvdcss: invoke('install-dvdcss'),
   installKeydb: invoke('install-keydb'),
+  about: invoke('about'),
+  notices: invoke('notices'),
+  openSourceRelease: invoke('open-source-release'),
+  openChromiumLicenses: invoke('open-chromium-licenses'),
   platform: process.platform,
   pathForFile: (f) => webUtils.getPathForFile(f),
   on: (ch, fn) => {

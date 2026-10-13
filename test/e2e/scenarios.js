@@ -59,8 +59,9 @@ Object.assign(module.exports, {
       h.assert.equal(r.ipc, 'undefined');
       h.assert.equal(r.href, 'app://spinarr/index.html');
       h.assert.ok(r.frozen, 'bridge object is frozen');
-      h.assert.deepEqual(r.bridge, ['cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'installKeydb', 'on',
-        'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip', 'scan', 'setSettings', 'system'].sort());
+      h.assert.deepEqual(r.bridge, ['about', 'cancel', 'clearFinished', 'drives', 'eject', 'freeSpace', 'getSettings', 'installDvdcss', 'installKeydb',
+        'notices', 'on', 'openChromiumLicenses', 'openSourceRelease', 'pathForFile', 'pickOutput', 'pickSource', 'platform', 'probe', 'reveal', 'rip',
+        'scan', 'setSettings', 'system'].sort());
       h.assert.equal(await h.js(`window.open('https://example.com') === null`), true, 'window.open is denied');
       for (const target of ['https://example.com', 'file:///etc/hosts', 'app://spinarr/../../etc/hosts']) {
         await h.js(`location.href = ${JSON.stringify(target)}; 1`).catch(() => {});
@@ -245,7 +246,7 @@ Object.assign(module.exports, {
 
   sec_gate_ipc: {
     stories: ['SAFE-01', 'SEC-04'],
-    title: 'Sandbox off: main refuses a scan without consent, and probe/rip of an unscanned source',
+    title: 'Sandbox off: main refuses a scan without consent, probe/rip of an unscanned source, and probe of a changed medium',
     env: { SPINARR_NO_SANDBOX: '1' },
     async run(h) {
       const src = JSON.stringify(h.fx('ntsc_basic.iso'));
@@ -260,12 +261,235 @@ Object.assign(module.exports, {
       const bad = await call(h, `spinarr.scan(${src}, 'x')`);
       h.assert.equal(bad.ok, false);
       h.assert.match(bad.e, /Invalid scan options/);
-      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, false, 'probe of an unscanned source is refused');
-      h.assert.equal((await call(h, `spinarr.rip([{ source: ${src}, title: 1 }])`)).ok, false, 'rip of an unscanned source is refused');
+      const probe = await call(h, `spinarr.probe(${src}, 1)`);
+      h.assert.equal(probe.ok, false, 'probe of an unscanned source is refused');
+      h.assert.match(probe.e, /Scan the disc again/, 'probe is refused because the source was not scanned');
+      const rip = await call(h, `spinarr.rip([{ source: ${src}, title: 1 }])`);
+      h.assert.equal(rip.ok, false, 'rip of an unscanned source is refused');
+      h.assert.match(rip.e, /Scan the disc again/, 'rip is refused because the source was not scanned');
       h.assert.equal(await h.js('state.queue.length'), 0);
-      await h.load(h.fx('ntsc_basic.iso')); // the real prompt and button
-      h.assert.equal(await h.js('state.disc.titles.length'), 2);
-      h.assert.equal((await call(h, `spinarr.probe(${src}, 1)`)).ok, true, 'probe works once the source was scanned with consent');
+      // Consent covers the medium as scanned, not its path: a changed copy must be scanned again.
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-gate-'));
+      try {
+        const copy = path.join(tmp, 'copy.iso');
+        fs.copyFileSync(h.fx('ntsc_basic.iso'), copy);
+        await h.load(copy); // the real prompt and button
+        h.assert.equal(await h.js('state.disc.titles.length'), 2);
+        h.assert.equal((await call(h, `spinarr.probe(${JSON.stringify(copy)}, 1)`)).ok, true, 'probe works for the unchanged medium scanned with consent');
+        fs.appendFileSync(copy, Buffer.from([0]));
+        const changed = await call(h, `spinarr.probe(${JSON.stringify(copy)}, 1)`);
+        h.assert.equal(changed.ok, false, 'consent does not survive a change to the image');
+        h.assert.match(changed.e, /Scan the disc again/, 'consent does not survive a change to the image');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+  },
+
+  sec_gate_swap: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: consent covers only the medium that was scanned; a swapped disc or image at the same path must be scanned again',
+    env: { SPINARR_NO_SANDBOX: '1', SPINARR_READRATE: '6' },
+    async run(h) {
+      // fakeEject reaches only the renderer, so the refusals here come from main's identity
+      // check (plan 01-11). That check is also what protects a real eject and reinsert.
+      // Every swap works on copies in a temp folder; the committed fixtures are only read.
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-swap-'));
+      const q = (v) => JSON.stringify(v);
+      const refused = async (expr, what) => {
+        const r = await call(h, expr);
+        h.assert.equal(r.ok, false, `${what} must be refused`);
+        h.assert.match(r.e, /Scan the disc again/, `${what} is refused with a rescan message`);
+      };
+      try {
+        // 1. Disc folder: consent, eject, swap another disc in at the same path.
+        const disc = path.join(tmp, 'DISC');
+        fs.cpSync(h.fx('ntsc_basic'), disc, { recursive: true });
+        h.fakeInsert('NTSC_BASIC', disc);
+        await expectPrompt(h, disc);
+        await expectScanAfterClick(h);
+        const ok1 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok1.ok, true, `probe works for the disc scanned with consent: ${ok1.e}`);
+        h.fakeEject();
+        await h.waitFor('state.drives.discs.length === 0', { what: 'fake eject' });
+        fs.rmSync(disc, { recursive: true, force: true });
+        fs.cpSync(h.fx('pal_subs'), disc, { recursive: true });
+        await refused(`spinarr.probe(${q(disc)}, 1)`, 'probe of a swapped disc folder');
+        await refused(`spinarr.rip([{ source: ${q(disc)}, title: 1, duration: 12, fileName: 'swap-folder', displayName: 'x' }])`, 'rip of a swapped disc folder');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of a swapped disc enqueues nothing');
+        // Scanning again through the real prompt restores probe for the new disc.
+        h.fakeInsert('PAL_SUBS', disc);
+        await expectPrompt(h, disc);
+        await expectScanAfterClick(h);
+        const ok2 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok2.ok, true, `probe works again after a consented rescan: ${ok2.e}`);
+
+        // 2. Disc image overwritten in place (same path, same inode, different size).
+        const iso = path.join(tmp, 'disc.iso');
+        fs.copyFileSync(h.fx('ntsc_basic.iso'), iso);
+        await h.load(iso);
+        h.assert.ok(await h.js('!!state.disc'), 'the image copy was scanned');
+        const ok3 = await call(h, `spinarr.probe(${q(iso)}, 1)`);
+        h.assert.equal(ok3.ok, true, `probe works for the image scanned with consent: ${ok3.e}`);
+        fs.writeFileSync(iso, fs.readFileSync(h.fx('pal_subs.iso')));
+        const isoProbe = await call(h, `spinarr.probe(${q(iso)}, 1)`);
+        h.assert.equal(isoProbe.ok, false, 'probe of an overwritten image must be refused');
+        h.assert.match(isoProbe.e, /Scan the disc again/, 'probe of an overwritten image is refused with a rescan message');
+        const isoRip = await call(h, `spinarr.rip([{ source: ${q(iso)}, title: 2, duration: 12, fileName: 'swap-iso', displayName: 'x' }])`);
+        h.assert.equal(isoRip.ok, false, 'rip of an overwritten image must be refused');
+        h.assert.match(isoRip.e, /Scan the disc again/, 'rip of an overwritten image is refused with a rescan message');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of an overwritten image enqueues nothing');
+
+        // 3. WR-08: a queued job whose source is overwritten while an earlier job rips.
+        const queued = path.join(tmp, 'queued.iso');
+        fs.copyFileSync(h.fx('ntsc_basic.iso'), queued);
+        await h.load(queued);
+        h.assert.ok(await h.js('!!state.disc'), 'the queued image was scanned');
+        const feature = h.fx('feature_disc.iso');
+        await h.load(feature);
+        const long = await h.js('(state.disc.titles.find(t => t.title === 4) || {}).duration');
+        h.assert.ok(long > 0, 'feature_disc title 4 has a duration');
+        const r = await call(h, `spinarr.rip([
+          { source: ${q(feature)}, title: 4, duration: ${long}, fileName: 'swap-long', displayName: 'a' },
+          { source: ${q(queued)}, title: 2, duration: 12, fileName: 'swap-queued', displayName: 'b' }])`);
+        h.assert.equal(r.ok, true, `both scanned, unchanged sources enqueue: ${r.e}`);
+        await h.waitFor('state.queue.length === 2 && state.queue[0].state === "ripping" && state.queue[1].state === "queued"', { timeout: 30000, what: 'job A ripping, job B queued' });
+        fs.writeFileSync(queued, fs.readFileSync(h.fx('pal_subs.iso')));
+        // Job A's outcome doesn't matter here; cancel it so the queue reaches job B quickly.
+        await h.click(`[data-cancel="${await h.js('state.queue[0].id')}"]`);
+        await h.idle(120000);
+        const jobs = await h.js('state.queue.map(j => ({ state: j.state, error: j.error || "" }))');
+        h.assert.notEqual(jobs[0].state, 'queued', 'job A left the queue');
+        h.assert.equal(jobs[1].state, 'failed', 'the queued job against a changed source fails');
+        h.assert.match(jobs[1].error, /Scan the disc again/, 'the queued job fails with a rescan message');
+        h.assert.ok(!files(h.outDir).some((f) => f.startsWith('swap-queued')), 'no output is written for the changed source');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+  },
+
+  sec_gate_inplace: {
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: an in-place edit to any file the disc readers open (same folder, same root) must be scanned again; OS metadata files do not block',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      // Unlike sec_gate_swap, nothing here replaces the source folder. The root inode never
+      // changes, so only the per-file fingerprint from plan 01-13 can trigger the refusal
+      // (WR-10). Every edit works on copies in a temp folder; the committed fixtures are only read.
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-inplace-'));
+      const q = (v) => JSON.stringify(v);
+      const refused = async (expr, what) => {
+        const r = await call(h, expr);
+        h.assert.equal(r.ok, false, `${what} must be refused`);
+        h.assert.match(r.e, /Scan the disc again/, `${what} is refused with a rescan message`);
+      };
+      try {
+        // 1. DVD folder: a root-level IFO appears (libdvdread searches the root first).
+        const disc = path.join(tmp, 'DISC');
+        fs.cpSync(h.fx('ntsc_basic'), disc, { recursive: true });
+        const ino0 = fs.statSync(disc).ino;
+        await h.load(disc);
+        const ok1 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok1.ok, true, `probe works for the disc scanned with consent: ${ok1.e}`);
+        // OS metadata that no disc reader opens.
+        fs.writeFileSync(path.join(disc, '.DS_Store'), Buffer.from([0, 0, 0, 1]));
+        fs.writeFileSync(path.join(disc, 'VIDEO_TS', '.DS_Store'), Buffer.from([0, 0, 0, 1]));
+        fs.writeFileSync(path.join(disc, 'VIDEO_TS', '._VTS_01_1.VOB'), Buffer.from([0, 5, 22, 7]));
+        const ok2 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok2.ok, true, `OS metadata files do not invalidate consent: ${ok2.e}`);
+        fs.copyFileSync(path.join(disc, 'VIDEO_TS', 'VTS_01_0.IFO'), path.join(disc, 'VTS_01_0.IFO'));
+        h.assert.equal(fs.statSync(disc).ino, ino0, 'the DVD folder itself was not replaced');
+        await refused(`spinarr.probe(${q(disc)}, 1)`, 'probe after a root-level IFO was added');
+        await refused(`spinarr.rip([{ source: ${q(disc)}, title: 1, duration: 12, fileName: 'inplace-dvd', displayName: 'x' }])`, 'rip after a root-level IFO was added');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of an edited DVD folder enqueues nothing');
+        // Scanning again restores probe.
+        await h.load(disc);
+        const ok3 = await call(h, `spinarr.probe(${q(disc)}, 1)`);
+        h.assert.equal(ok3.ok, true, `probe works again after a consented rescan: ${ok3.e}`);
+
+        // 2. Blu-ray folder: a BDMV/BACKUP playlist is rewritten in place.
+        const bd = path.join(tmp, 'BD');
+        fs.cpSync(h.fx('bd_movie'), bd, { recursive: true });
+        const backup = path.join(bd, 'BDMV', 'BACKUP', 'PLAYLIST', '00000.mpls');
+        if (!fs.existsSync(backup)) {
+          fs.mkdirSync(path.dirname(backup), { recursive: true });
+          fs.copyFileSync(path.join(bd, 'BDMV', 'PLAYLIST', '00000.mpls'), backup);
+        }
+        const ino1 = fs.statSync(bd).ino;
+        await h.load(bd);
+        h.assert.equal(await h.js('state.disc && state.disc.type'), 'bluray', 'the Blu-ray copy was scanned');
+        const ok4 = await call(h, `spinarr.probe(${q(bd)}, 1)`);
+        h.assert.equal(ok4.ok, true, `probe works for the Blu-ray scanned with consent: ${ok4.e}`);
+        fs.appendFileSync(backup, Buffer.from([0]));
+        h.assert.equal(fs.statSync(bd).ino, ino1, 'the Blu-ray folder itself was not replaced');
+        await refused(`spinarr.probe(${q(bd)}, 1)`, 'probe after a BACKUP playlist was rewritten');
+        await refused(`spinarr.rip([{ source: ${q(bd)}, title: 1, duration: 12, fileName: 'inplace-bd', displayName: 'x' }])`, 'rip after a BACKUP playlist was rewritten');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip of an edited Blu-ray folder enqueues nothing');
+
+        h.assert.ok(!files(h.outDir).some((f) => f.startsWith('inplace-')), 'no output is written for an edited source');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+  },
+
+  sec_gate_unlistable: {
+    platforms: ['darwin', 'linux'], // POSIX directory modes; Windows ACLs work differently
+    stories: ['SAFE-01'],
+    title: 'Sandbox off: a disc folder made traverse-only after a consented scan is refused, not silently trusted',
+    env: { SPINARR_NO_SANDBOX: '1' },
+    async run(h) {
+      // CR-01 round 3: libbluray opens files by name, which needs only search permission. A
+      // traverse-only BDMV used to read as "missing" and freeze the identity while its files were
+      // edited. The walk must now refuse a folder it can't list.
+      if (process.getuid && process.getuid() === 0) {
+        h.assert.ok(true, 'skipped as root: uid 0 ignores directory permissions');
+        return;
+      }
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spinarr-unlistable-'));
+      const bd = path.join(tmp, 'BD');
+      const bdmv = path.join(bd, 'BDMV');
+      const q = (v) => JSON.stringify(v);
+      let bdmv2 = null;
+      try {
+        fs.cpSync(h.fx('bd_movie'), bd, { recursive: true });
+        await h.load(bd);
+        h.assert.equal(await h.js('state.disc && state.disc.type'), 'bluray', 'the Blu-ray copy was scanned');
+        const ok = await call(h, `spinarr.probe(${q(bd)}, 1)`);
+        h.assert.equal(ok.ok, true, `probe works for the Blu-ray scanned with consent: ${ok.e}`);
+        fs.chmodSync(bdmv, 0o311);
+        fs.appendFileSync(path.join(bdmv, 'index.bdmv'), Buffer.from([0])); // by name: still allowed
+        // Rip first: the first refusal drops the scan, so only it can carry the specific reason.
+        const rip = await call(h, `spinarr.rip([{ source: ${q(bd)}, title: 1, duration: 12, fileName: 'unlistable-bd', displayName: 'x' }])`);
+        h.assert.equal(rip.ok, false, 'rip of a traverse-only BDMV must be refused');
+        h.assert.match(rip.e, /Scan the disc again/, 'rip is refused with a rescan message');
+        h.assert.match(rip.e, /can't read every folder/, 'the refusal names the real reason');
+        const probe = await call(h, `spinarr.probe(${q(bd)}, 1)`);
+        h.assert.equal(probe.ok, false, 'probe of a traverse-only BDMV must be refused');
+        h.assert.match(probe.e, /Scan the disc again/, 'probe is refused with a rescan message');
+        h.assert.equal(await h.js('state.queue.length'), 0, 'a refused rip enqueues nothing');
+
+        // The 01-VERIFICATION repro: BDMV is traverse-only BEFORE the scan. The engine can still
+        // read every file by name, so the old walk froze the identity at consent time and any
+        // later edit passed. The scan itself must now refuse and name the reason.
+        const bd2 = path.join(tmp, 'BD2');
+        bdmv2 = path.join(bd2, 'BDMV');
+        fs.cpSync(h.fx('bd_movie'), bd2, { recursive: true });
+        fs.chmodSync(bdmv2, 0o311);
+        await h.load(bd2);
+        h.assert.equal(await h.js('state.disc'), null, 'a traverse-only Blu-ray is not scanned');
+        h.assert.match(String(await h.js('state.error')), /can't read every folder/, 'the scan error names the real reason');
+        fs.appendFileSync(path.join(bdmv2, 'index.bdmv'), Buffer.from([0]));
+        const probe2 = await call(h, `spinarr.probe(${q(bd2)}, 1)`);
+        h.assert.equal(probe2.ok, false, 'probe of a never-checked traverse-only Blu-ray must be refused');
+        h.assert.match(probe2.e, /Scan the disc again/, 'probe is refused with a rescan message');
+
+        h.assert.ok(!files(h.outDir).some((f) => f.startsWith('unlistable-')), 'no output is written');
+      } finally {
+        for (const d of [bdmv, bdmv2]) { if (d) { try { fs.chmodSync(d, 0o755); } catch {} } }
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     },
   },
 
@@ -441,6 +665,45 @@ Object.assign(module.exports, {
         h.assert.deepEqual(await h.js(visibleTitles), [1, 2, 4], 'short titles shown with 0-minute threshold');
       },
     ],
+  },
+
+  about_notices: {
+    stories: ['REL-04'],
+    title: 'Settings > About shows the GPL notice, source link and third-party licenses',
+    async run(h) {
+      // The harness runs in the main process, so record what main would open in the browser.
+      const { shell } = require('electron');
+      const realOpenExternal = shell.openExternal;
+      const opened = [];
+      shell.openExternal = async (url) => { opened.push(url); };
+      try {
+        const version = h.app.getVersion();
+        await h.click('#settingsBtn');
+        await h.waitFor(`(document.querySelector('#aboutGroup pre') || {}).textContent`, { what: 'third-party notices text' });
+        const g = await h.js(`({ text: document.querySelector('#aboutGroup').textContent,
+          notices: document.querySelector('#aboutGroup pre').textContent,
+          html: document.querySelector('#aboutGroup').innerHTML })`);
+        h.assert.ok(g.text.includes(version), `About shows version ${version}`);
+        h.assert.ok(g.text.includes('GPL-3.0-or-later'), 'About shows the GPL notice');
+        for (const c of ['== libdvdread', '== libbluray', '== libudfread', '== electron']) h.assert.ok(g.notices.includes(c), `notices include ${c}`);
+        h.assert.ok(!g.html.includes('<script'), 'no script markup in the About group');
+
+        // The renderer cannot choose the URL: an argument is ignored and main opens its own link.
+        await h.click('[data-action="open-source"]');
+        await call(h, 'spinarr.openSourceRelease("https://evil.example")');
+        await h.sleep(300);
+        const want = `https://github.com/rick-rami94/spinarr/releases/tag/v${version}`;
+        h.assert.deepEqual(opened, [want, want], 'both opens use the fixed source-release URL');
+
+        await h.js(`document.querySelector('#aboutGroup details').open = true; document.querySelector('#aboutGroup').scrollIntoView(); 1`);
+        for (const skin of require('../../app/lib').SKINS) {
+          await h.js(`document.documentElement.dataset.skin = ${JSON.stringify(skin)}; 1`);
+          await h.shot(`about-${skin}`);
+        }
+      } finally {
+        shell.openExternal = realOpenExternal;
+      }
+    },
   },
 
   us_low_disk_space: {

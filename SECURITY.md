@@ -12,6 +12,10 @@ Please **don't open a public issue**. Report it privately through GitHub's **Sec
 
 We aim to acknowledge reports within 3 days and ship a fix or mitigation within 30 days. Bugs in libdvdread, libdvdnav or ffmpeg are reported upstream as well, with credit to you unless you'd rather stay anonymous.
 
+### Fuzzing
+
+Spinarr fuzzes its disc parsers continuously. Crashes it finds are filed as private draft security advisories, and the crashing inputs are kept in a private repository until a fix ships. Fixes ship as engine patches (`engine/patches/`) and are reported privately to the upstream VideoLAN projects. The full flow is in [docs/RELEASING.md](docs/RELEASING.md#fuzz-crash-handling). If you find a bug yourself, fuzzing or not, still report it privately as described above.
+
 ## Supported versions
 
 Only the latest release gets security fixes.
@@ -36,6 +40,16 @@ The full threat model and test results are in [docs/SECURITY_TESTING.md](docs/SE
 - **No unsandboxed auto-scan.**
   - Physical discs scan automatically only when the engine sandbox is on.
   - Where it's off (Windows today, Linux without bubblewrap, or a dev run with `SPINARR_NO_SANDBOX`), Spinarr asks before every scan and never remembers the answer.
+    - A yes covers only that disc or image as it was when you scanned it. If it is ejected, swapped for another disc in the same drive or folder, or the image file has changed since, Spinarr refuses to probe or rip it until you scan again. A queued rip whose disc changed fails instead of running.
+    - For a disc folder, Spinarr checks the size, file ID and modification time of every file in the folders the disc readers use. For a DVD, that is the folder's top level plus VIDEO_TS and the other DVD folders libdvdread looks in. For a Blu-ray, it is BDMV (including BACKUP), AACS, CERTIFICATE and BDSVM. A folder it can't fully list or read is refused, not trusted.
+    - Hidden system files such as .DS_Store and ._ files are ignored, and so are Thumbs.db and desktop.ini in DVD folders, so they don't cause false refusals.
   - Disk images and folders are never scanned without a click.
 
-  The limit: the prompt is enforced in the main process, which also refuses to probe or rip a disc that hasn't been scanned. That protects against app bugs, not against a UI process that is already compromised.
+  The limit: the prompt and the same-disc check are enforced in the main process, which refuses to probe or rip a disc that hasn't been scanned or has changed since. "The same disc" is judged from file-system details (volume serial or device, file IDs, sizes, timestamps), not a hash of the contents. A disc built to copy those details exactly could pass. A disc whose checked folders hold more than 20,000 entries in total is refused. On disks that ignore letter case (the macOS and Windows defaults), a DVD's folders can be counted twice, so the practical DVD limit there is about 10,000. This check also runs when the sandbox is on. Ejecting or changing the disc normally clears the answer. But on Windows, Spinarr checks drives every few seconds, so a quick swap can be missed. That is why, before every probe or rip, Spinarr also checks that the disc's files still match what was scanned.
+
+  **Known limit: the same-disc check is a best-effort guard, not a sandbox.** Anyone who can write to a folder or image you said yes to can still influence the unsandboxed engine:
+  - The check runs before each probe or rip starts. The engine keeps opening files for the whole rip, so a file changed after it starts is read as changed.
+  - A crafted Blu-ray playlist can name clip files the check skips, for example hidden dot-names.
+  - A file rewritten at the same size, with its timestamps restored, looks unchanged.
+
+  Full protection comes from the engine sandbox on every OS. Windows has none today. That work is tracked as SF-1. All of this protects against app bugs, not against a UI process that is already compromised.

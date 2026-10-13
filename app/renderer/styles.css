@@ -681,6 +681,14 @@ dialog::backdrop { background: var(--scrim); backdrop-filter: blur(6px); animati
    ========================================================================== */
 .group-title { font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--text-3); margin: 4px 0 -6px 4px; }
 .group-row.top { align-items: flex-start; }
+/* Settings -> About: the bundled third-party notices, read-only and scrollable. Tokens only, so every skin inherits it. */
+#aboutGroup summary { cursor: pointer; font-weight: 600; }
+#aboutGroup small { overflow-wrap: anywhere; }
+#aboutGroup pre.notices {
+  max-height: 320px; overflow: auto; margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+  white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.45 var(--mono); user-select: text;
+  background: var(--surface); border: 1px solid var(--hairline); color: var(--text-3);
+}
 .status { flex: none; display: grid; place-items: center; margin-top: 1px; }
 .status svg { width: 18px; height: 18px; }
 .status.ok { color: var(--ok); }
