@@ -109,7 +109,7 @@ Plans:
 
 - [x] 02-01-PLAN.md — macOS/Windows signing hooks, split entitlements, verify scripts (REL-01, REL-02)
 - [x] 02-02-PLAN.md — pin parser, CycloneDX SBOM, THIRD_PARTY_NOTICES, build.sh fetch mode (REL-03, REL-04)
-- [ ] 02-03-PLAN.md — account runbook, verification guide, README; `release` env + Immutable Releases checkpoint
+- [x] 02-03-PLAN.md — account runbook, verification guide, README; `release` env + Immutable Releases checkpoint
 - [ ] 02-04-PLAN.md — private fuzz corpus repo and scoped credential (checkpoints)
 - [x] 02-05-PLAN.md — libFuzzer harnesses (DVDOpenFiles / bd_open_files) and scanner refactor (SAFE-10)
 
@@ -246,7 +246,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Safety Gate & CI Baseline | 15/15 | Complete | 2026-10-12 |
-| 2. Trust & Distribution | 8/14 | In Progress|  |
+| 2. Trust & Distribution | 9/14 | In Progress|  |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
 | 5. Verified Rips | 0/TBD | Not started | - |
