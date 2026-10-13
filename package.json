@@ -6,6 +6,7 @@
   "main": "app/main.js",
   "license": "GPL-3.0-or-later",
   "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
     "start": "electron .",
     "engine": "sh engine/build.sh",
     "fixtures": "sh test/fixtures/make.sh && sh test/fixtures/make-bluray.sh",
