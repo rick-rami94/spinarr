@@ -827,6 +827,7 @@ compatible with the LGPL.
 Upstream: https://download.videolan.org/pub/videolan/libdvdread/7.1.1/libdvdread-7.1.1.tar.xz
 Local patches:
   libdvdread-0001-harden-ifo-parsing.patch
+  libdvdread-0002-fix-ifo-error-path-null-free-and-leak.patch
 
                     GNU GENERAL PUBLIC LICENSE
                        Version 2, June 1991
