@@ -8,7 +8,7 @@ const path = require('path');
 
 const DIR = path.join(__dirname, '..', '..', '.github', 'workflows');
 const FILES = fs.readdirSync(DIR).filter((f) => /^fuzz-.*\.ya?ml$/.test(f)).sort();
-const SRC = Object.fromEntries(FILES.map((f) => [f, fs.readFileSync(path.join(DIR, f), 'utf8')]));
+const SRC = Object.fromEntries(FILES.map((f) => [f, fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n')]));
 
 const indent = (l) => l.match(/^ */)[0].length;
 const code = (l) => l.replace(/(^|\s)#.*$/, ''); // drop YAML comments
