@@ -122,8 +122,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-10-PLAN.md — PR/nightly/weekly fuzz workflows with private crash reporting (SAFE-10)
-- [ ] 02-11-PLAN.md — release.yml: env-gated signing, dmg notarization, SBOM, source, cosign, attestations, draft (REL-01..04)
+- [x] 02-10-PLAN.md — PR/nightly/weekly fuzz workflows with private crash reporting (SAFE-10)
+- [x] 02-11-PLAN.md — release.yml: env-gated signing, dmg notarization, SBOM, source, cosign, attestations, draft (REL-01..04)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -246,7 +246,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Safety Gate & CI Baseline | 15/15 | Complete | 2026-10-12 |
-| 2. Trust & Distribution | 6/14 | In Progress|  |
+| 2. Trust & Distribution | 8/14 | In Progress|  |
 | 3. Rip Foundations | 0/TBD | Not started | - |
 | 4. Sandbox Everywhere | 0/TBD | Not started | - |
 | 5. Verified Rips | 0/TBD | Not started | - |
